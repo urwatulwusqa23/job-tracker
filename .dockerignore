@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Env & secrets
+.env
+*.env
+
+# Database (never ship local DB into image)
+*.db
+*.sqlite
+*.sqlite3
+/data/
+
+# Dev artifacts
+.git/
+.gitignore
+*.log
+server.log
+jobtracker.db
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore

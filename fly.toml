@@ -1,0 +1,35 @@
+# fly.toml — Fly.io deployment config
+# Deploy with: fly deploy
+# First time: fly launch (then fly deploy)
+
+app = "job-tracker-ai"        # change to your chosen app name
+primary_region = "lhr"        # London — change to nearest: iad=US-East, sin=Singapore, syd=Sydney
+
+[build]
+
+[env]
+  DB_PATH    = "/data/jobtracker.db"
+  PORT       = "8080"
+  GROK_MODEL = "grok-3-mini"
+
+[http_service]
+  internal_port       = 8080
+  force_https         = true
+  auto_stop_machines  = "stop"
+  auto_start_machines = true
+  min_machines_running = 0       # scale to zero when idle (free)
+
+  [http_service.concurrency]
+    type       = "connections"
+    hard_limit = 25
+    soft_limit = 20
+
+# Persistent volume — SQLite data survives deploys and restarts
+[[mounts]]
+  source      = "job_data"
+  destination = "/data"
+
+[[vm]]
+  memory   = "256mb"
+  cpu_kind = "shared"
+  cpus     = 1

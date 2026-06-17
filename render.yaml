@@ -1,0 +1,19 @@
+# render.yaml — Render.com deployment config
+# Connect your GitHub repo at render.com and it auto-deploys
+
+services:
+  - type: web
+    name: job-tracker-ai
+    runtime: docker
+    plan: free                    # free tier — spins down after 15 min inactivity, cold start ~30s
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: XAI_API_KEY
+        sync: false               # set this in Render dashboard — get free key at console.x.ai
+      - key: GROK_MODEL
+        value: grok-3-mini
+      - key: DB_PATH
+        value: /data/jobtracker.db # ⚠ Render free has no persistent disk — data resets on restart. Upgrade to Starter ($7/mo) and add a Disk to fix this
+      - key: PORT
+        value: 8080
+    healthCheckPath: /

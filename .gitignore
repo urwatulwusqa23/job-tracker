@@ -1,0 +1,24 @@
+# Secrets — NEVER commit these
+.env
+
+# Database — local only
+*.db
+*.sqlite
+*.sqlite3
+/data/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Logs
+*.log
+server.log
+
+# OS
+.DS_Store
+Thumbs.db
