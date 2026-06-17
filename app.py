@@ -1,7 +1,10 @@
-import os, json, io, sqlite3, imaplib, email as email_lib
+import os, json, io, sqlite3, base64, re
 from datetime import datetime
-from email.header import decode_header
-from flask import Flask, render_template, request, jsonify, send_file
+from flask import Flask, render_template, request, jsonify, send_file, redirect
+from google_auth_oauthlib.flow import Flow
+from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request as GoogleRequest
+from googleapiclient.discovery import build
 from openai import OpenAI
 import pdfplumber
 import requests
@@ -14,6 +17,19 @@ DB_PATH = os.getenv('DB_PATH', 'jobtracker.db')
 
 # Grok uses OpenAI-compatible API — just swap the base_url
 GROK_MODEL = os.getenv('GROK_MODEL', 'grok-3-mini')
+
+GMAIL_SCOPES   = ['https://www.googleapis.com/auth/gmail.readonly']
+REDIRECT_URI   = os.getenv('REDIRECT_URI', 'http://localhost:5001/auth/google/callback')
+GMAIL_QUERY    = ('subject:(application OR interview OR "offer letter" OR position '
+                  'OR vacancy OR hiring OR recruitment OR shortlisted OR assessment)')
+
+REJECTION_WORDS = [
+    'unfortunately', 'regret to inform', 'not moving forward',
+    'decided not to proceed', 'not selected', 'other candidates',
+    'position has been filled', 'will not be moving forward',
+    'not been selected', 'unsuccessful', 'not proceed with your application',
+    'not be taking your application further', 'chosen not to proceed',
+]
 
 def get_ai_client():
     key = os.getenv('XAI_API_KEY', '')
@@ -88,9 +104,125 @@ def init_db():
             prep_json        TEXT,
             generated_at     TEXT DEFAULT (datetime('now'))
         );
+
+        CREATE TABLE IF NOT EXISTS oauth_tokens (
+            provider   TEXT PRIMARY KEY,
+            token_json TEXT,
+            email      TEXT,
+            updated_at TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS settings (
+            key   TEXT PRIMARY KEY,
+            value TEXT
+        );
     ''')
     conn.commit()
     conn.close()
+
+
+# ── Google OAuth helpers ───────────────────────────────────────────────────────
+
+def _oauth_client_config():
+    return {
+        "web": {
+            "client_id":     os.getenv('GOOGLE_CLIENT_ID', ''),
+            "client_secret": os.getenv('GOOGLE_CLIENT_SECRET', ''),
+            "auth_uri":      "https://accounts.google.com/o/oauth2/auth",
+            "token_uri":     "https://oauth2.googleapis.com/token",
+            "redirect_uris": [REDIRECT_URI],
+        }
+    }
+
+def _get_gmail_service():
+    conn = get_db()
+    row  = conn.execute("SELECT token_json FROM oauth_tokens WHERE provider='google'").fetchone()
+    conn.close()
+    if not row:
+        return None
+    creds = Credentials.from_authorized_user_info(json.loads(row['token_json']), GMAIL_SCOPES)
+    if creds.expired and creds.refresh_token:
+        creds.refresh(GoogleRequest())
+        conn = get_db()
+        conn.execute(
+            "UPDATE oauth_tokens SET token_json=?, updated_at=datetime('now') WHERE provider='google'",
+            (creds.to_json(),)
+        )
+        conn.commit()
+        conn.close()
+    return build('gmail', 'v1', credentials=creds)
+
+def _extract_body(payload):
+    if payload.get('body', {}).get('data'):
+        return base64.urlsafe_b64decode(payload['body']['data']).decode('utf-8', errors='ignore')
+    for part in payload.get('parts', []):
+        if part.get('mimeType') == 'text/plain' and part.get('body', {}).get('data'):
+            return base64.urlsafe_b64decode(part['body']['data']).decode('utf-8', errors='ignore')
+    return ''
+
+
+# ── Google OAuth routes ────────────────────────────────────────────────────────
+
+@app.route('/auth/google')
+def google_auth():
+    if not os.getenv('GOOGLE_CLIENT_ID') or not os.getenv('GOOGLE_CLIENT_SECRET'):
+        return 'GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET not set in .env', 500
+    flow = Flow.from_client_config(_oauth_client_config(), scopes=GMAIL_SCOPES)
+    flow.redirect_uri = REDIRECT_URI
+    auth_url, state = flow.authorization_url(access_type='offline', prompt='consent')
+    conn = get_db()
+    conn.execute("INSERT OR REPLACE INTO settings (key,value) VALUES ('oauth_state',?)", (state,))
+    conn.commit()
+    conn.close()
+    return redirect(auth_url)
+
+
+@app.route('/auth/google/callback')
+def google_callback():
+    if request.args.get('error'):
+        return redirect('/')
+    state = request.args.get('state', '')
+    conn  = get_db()
+    row   = conn.execute("SELECT value FROM settings WHERE key='oauth_state'").fetchone()
+    conn.close()
+    if not row or row['value'] != state:
+        return 'OAuth state mismatch — please try connecting again.', 400
+    flow = Flow.from_client_config(_oauth_client_config(), scopes=GMAIL_SCOPES, state=state)
+    flow.redirect_uri = REDIRECT_URI
+    flow.fetch_token(code=request.args.get('code', ''))
+    creds = flow.credentials
+    try:
+        svc   = build('gmail', 'v1', credentials=creds)
+        email = svc.users().getProfile(userId='me').execute().get('emailAddress', '')
+    except Exception:
+        email = ''
+    conn = get_db()
+    conn.execute(
+        "INSERT OR REPLACE INTO oauth_tokens (provider,token_json,email,updated_at) VALUES ('google',?,?,datetime('now'))",
+        (creds.to_json(), email)
+    )
+    conn.commit()
+    conn.close()
+    return redirect('/')
+
+
+@app.route('/api/gmail/status')
+def gmail_status():
+    conn = get_db()
+    row  = conn.execute("SELECT email FROM oauth_tokens WHERE provider='google'").fetchone()
+    conn.close()
+    if row:
+        return jsonify({'connected': True, 'email': row['email']})
+    return jsonify({'connected': False})
+
+
+@app.route('/api/gmail/disconnect', methods=['POST'])
+def gmail_disconnect():
+    conn = get_db()
+    conn.execute("DELETE FROM oauth_tokens WHERE provider='google'")
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
 
 
 # ── Pages ──────────────────────────────────────────────────────────────────────
@@ -111,6 +243,20 @@ def get_stats():
             'SELECT COUNT(*) FROM applications WHERE status = ?', (status,)
         ).fetchone()[0]
     stats['total'] = conn.execute('SELECT COUNT(*) FROM applications').fetchone()[0]
+    stats['active'] = stats['applied'] + stats['screening'] + stats['interview']
+
+    followup_rows = conn.execute('''
+        SELECT id, company, role, applied_date,
+               CAST(julianday('now') - julianday(COALESCE(updated_at, created_at)) AS INTEGER) AS days_stale
+        FROM applications
+        WHERE status IN ('Applied','Screening')
+        AND julianday('now') - julianday(COALESCE(updated_at, created_at)) >= 7
+        ORDER BY days_stale DESC LIMIT 8
+    ''').fetchall()
+    stats['followup_needed'] = [dict(r) for r in followup_rows]
+
+    sync_row = conn.execute("SELECT value FROM settings WHERE key='last_gmail_sync'").fetchone()
+    stats['last_gmail_sync'] = sync_row['value'] if sync_row else None
 
     recent = conn.execute('''
         SELECT al.action, al.note, al.timestamp, ap.company, ap.role
@@ -311,58 +457,89 @@ TEXT:
         return jsonify({'error': f'AI parse error: {e}'}), 500
 
 
-# ── Gmail IMAP scan ────────────────────────────────────────────────────────────
+# ── Gmail scan (OAuth) ─────────────────────────────────────────────────────────
+
 
 @app.route('/api/gmail_scan', methods=['POST'])
 def gmail_scan():
-    data = request.get_json() or {}
-    email_addr = data.get('email', '').strip()
-    password   = data.get('password', '').strip()
-    if not email_addr or not password:
-        return jsonify({'error': 'Email and App Password required'}), 400
-
-    job_keywords = ['application', 'interview', 'offer letter', 'position', 'role',
-                    'vacancy', 'hiring', 'recruitment', 'job opportunity', 'shortlisted',
-                    'congratulations', 'next steps', 'assessment']
-    found = []
+    svc = _get_gmail_service()
+    if not svc:
+        return jsonify({'error': 'Gmail not connected — click "Connect Gmail" on the Import page'}), 401
     try:
-        mail = imaplib.IMAP4_SSL('imap.gmail.com')
-        mail.login(email_addr, password)
-        mail.select('inbox')
-
-        _, data_ids = mail.search(None, 'ALL')
-        ids = data_ids[0].split()[-100:]
-
-        for eid in reversed(ids):
-            _, msg_data = mail.fetch(eid, '(RFC822)')
-            raw_msg = email_lib.message_from_bytes(msg_data[0][1])
-
-            raw_subj = raw_msg.get('Subject', '')
-            decoded  = decode_header(raw_subj)[0]
-            subject  = decoded[0].decode(decoded[1] or 'utf-8', errors='ignore') \
-                       if isinstance(decoded[0], bytes) else (decoded[0] or '')
-
-            if not any(kw in subject.lower() for kw in job_keywords):
-                continue
-
-            body = ''
-            if raw_msg.is_multipart():
-                for part in raw_msg.walk():
-                    if part.get_content_type() == 'text/plain':
-                        body = (part.get_payload(decode=True) or b'').decode('utf-8', errors='ignore')[:2500]
-                        break
-            else:
-                body = (raw_msg.get_payload(decode=True) or b'').decode('utf-8', errors='ignore')[:2500]
-
-            found.append({'subject': subject, 'sender': raw_msg.get('From', ''),
-                          'date': raw_msg.get('Date', ''), 'body': body})
+        results  = svc.users().messages().list(userId='me', q=GMAIL_QUERY, maxResults=25).execute()
+        messages = results.get('messages', [])
+        found = []
+        for meta in messages:
+            msg     = svc.users().messages().get(userId='me', id=meta['id'], format='full').execute()
+            headers = {h['name']: h['value'] for h in msg['payload'].get('headers', [])}
+            body    = _extract_body(msg['payload'])
+            found.append({
+                'subject': headers.get('Subject', ''),
+                'sender':  headers.get('From', ''),
+                'date':    headers.get('Date', ''),
+                'body':    body[:2500],
+            })
             if len(found) >= 20:
                 break
-
-        mail.logout()
         return jsonify({'emails': found, 'count': len(found)})
-    except imaplib.IMAP4.error as e:
-        return jsonify({'error': f'Login failed – check your App Password: {e}'}), 401
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/gmail/sync', methods=['POST'])
+def gmail_sync():
+    """Smart sync: auto-detects rejections and updates statuses silently."""
+    svc = _get_gmail_service()
+    if not svc:
+        return jsonify({'error': 'Gmail not connected — connect it in the Inbox tab'}), 401
+
+    def _normalize(name):
+        return re.sub(r'\b(inc|ltd|llc|corp|co|limited|plc|group|technologies|solutions)\b\.?', '',
+                      name.lower()).strip()
+
+    try:
+        conn = get_db()
+        apps = conn.execute('SELECT id, company, status FROM applications').fetchall()
+        company_map = {_normalize(a['company']): dict(a) for a in apps if a['company']}
+
+        results  = svc.users().messages().list(userId='me', q=GMAIL_QUERY, maxResults=50).execute()
+        messages = results.get('messages', [])
+
+        auto_rejected, new_emails = [], []
+
+        for meta in messages:
+            msg     = svc.users().messages().get(userId='me', id=meta['id'], format='full').execute()
+            hdrs    = {h['name']: h['value'] for h in msg['payload'].get('headers', [])}
+            subject = hdrs.get('Subject', '')
+            body    = _extract_body(msg['payload'])
+            full    = (subject + ' ' + body[:1200]).lower()
+
+            matched = next((app for key, app in company_map.items() if key and key in full), None)
+            is_rejection = any(kw in full for kw in REJECTION_WORDS)
+
+            if is_rejection and matched and matched['status'] not in ('Rejected', 'Withdrawn', 'Offer'):
+                conn.execute(
+                    "UPDATE applications SET status='Rejected', updated_at=datetime('now') WHERE id=?",
+                    (matched['id'],)
+                )
+                conn.execute(
+                    'INSERT INTO activity_log (application_id, action) VALUES (?, ?)',
+                    (matched['id'], 'Auto-rejected via Gmail sync')
+                )
+                auto_rejected.append({'company': matched['company'], 'subject': subject})
+            else:
+                if len(new_emails) < 20:
+                    new_emails.append({
+                        'subject': subject,
+                        'sender':  hdrs.get('From', ''),
+                        'date':    hdrs.get('Date', ''),
+                        'body':    body[:2500],
+                    })
+
+        conn.execute("INSERT OR REPLACE INTO settings (key,value) VALUES ('last_gmail_sync',datetime('now'))")
+        conn.commit()
+        conn.close()
+        return jsonify({'auto_rejected': auto_rejected, 'emails': new_emails, 'count': len(new_emails)})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
