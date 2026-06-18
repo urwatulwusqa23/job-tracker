@@ -534,29 +534,31 @@ prio-High{color:var(--red)}
     <div class="import-card">
       <div class="import-card-title">📧 Gmail Sync</div>
 
-      <div id="inbox-disconnected">
-        <p class="import-desc">Connect Gmail via Google OAuth — no passwords required. The app gets read-only access and never sends emails on your behalf.</p>
-        <a href="/auth/google" class="btn btn-accent" style="text-decoration:none;display:inline-flex;width:fit-content">Connect Gmail with Google</a>
+      <!-- Primary account (from Google login) -->
+      <div style="margin-bottom:14px">
+        <div style="font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:8px">Primary Account</div>
+        <div id="gmail-primary-area"></div>
       </div>
 
-      <div id="inbox-connected" style="display:none;flex-direction:column;gap:14px">
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <span class="pill pill-g">✓ Connected</span>
-          <span id="inbox-email-display" style="font-size:.8rem;color:var(--sub)"></span>
-          <button class="btn btn-ghost btn-xs" onclick="doGmailDisconnect()">Disconnect</button>
-        </div>
-        <p class="import-desc" style="margin:0">Sync scans your inbox, auto-extracts new job applications and adds them to your tracker, and silently marks rejections for companies you're already tracking.</p>
+      <!-- Secondary scan-only account -->
+      <div style="border-top:1px solid var(--border);padding-top:14px;margin-bottom:14px">
+        <div style="font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:8px">Additional Extraction Email</div>
+        <div id="gmail-scan-area"></div>
+      </div>
+
+      <!-- Sync button + results (shown when any account connected) -->
+      <div id="gmail-sync-area" style="display:none;border-top:1px solid var(--border);padding-top:14px">
+        <p class="import-desc" style="margin:0 0 12px">Sync scans your inbox, auto-extracts new applications, and silently marks rejections for companies you're already tracking.</p>
         <div class="alert alert-err" id="inbox-sync-err"></div>
         <button class="btn btn-accent" id="btn-sync-inbox" onclick="doGmailSync('inbox')">⟳ Sync Now</button>
 
-        <!-- Sync results -->
-        <div id="sync-results" style="display:none">
+        <div id="sync-results" style="display:none;margin-top:14px">
           <div id="sync-rejected-section" style="display:none;margin-bottom:16px">
-            <h3 style="color:var(--green)">Auto-updated</h3>
+            <h3 style="color:var(--green);margin-bottom:8px">Auto-updated</h3>
             <div id="sync-rejected-list"></div>
           </div>
           <div id="sync-emails-section" style="display:none">
-            <h3>Emails to Review</h3>
+            <h3 style="margin-bottom:8px">Added</h3>
             <div id="sync-email-list" style="display:flex;flex-direction:column;gap:10px"></div>
           </div>
         </div>
@@ -1102,21 +1104,44 @@ function renderSyncResults(d) {
 //  INBOX STATUS
 // ══════════════════════════════════════════════════
 async function checkInboxStatus() {
-  const d = await api('/api/gmail/status');
-  const disc = document.getElementById('inbox-disconnected');
-  const conn = document.getElementById('inbox-connected');
-  if (d.connected) {
-    disc.style.display = 'none';
-    conn.style.display = 'flex';
-    document.getElementById('inbox-email-display').textContent = d.email || '';
+  const d           = await api('/api/gmail/status');
+  const primaryArea = document.getElementById('gmail-primary-area');
+  const scanArea    = document.getElementById('gmail-scan-area');
+  const syncArea    = document.getElementById('gmail-sync-area');
+  if (!primaryArea) return;
+
+  if (d.primary) {
+    primaryArea.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span class="pill pill-g">✓ ${d.primary}</span>
+        <span style="font-size:.73rem;color:var(--muted)">via Google sign-in</span>
+      </div>`;
   } else {
-    disc.style.display = 'block';
-    conn.style.display = 'none';
+    primaryArea.innerHTML = `
+      <p class="import-desc" style="margin:0 0 10px">Sign in with Google to auto-connect your Gmail for scanning.</p>
+      <a href="/auth/google/login" class="btn btn-accent" style="text-decoration:none;display:inline-flex;align-items:center;gap:8px;width:fit-content;padding:9px 16px;font-size:.82rem">
+        <svg width="15" height="15" viewBox="0 0 18 18" fill="none"><path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z" fill="#4285F4"/><path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18Z" fill="#34A853"/><path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332Z" fill="#FBBC05"/><path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58Z" fill="#EA4335"/></svg>
+        Sign in with Google
+      </a>`;
   }
+
+  if (d.scan) {
+    scanArea.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span class="pill pill-g">✓ ${d.scan}</span>
+        <button class="btn btn-ghost btn-xs" onclick="doGmailDisconnect('google_scan')">Remove</button>
+      </div>`;
+  } else {
+    scanArea.innerHTML = `
+      <p class="import-desc" style="margin:0 0 10px;font-size:.78rem">Add a second Gmail (e.g. personal vs work) to also scan for job emails.</p>
+      <a href="/auth/google" class="btn btn-ghost btn-sm" style="text-decoration:none;display:inline-flex;width:fit-content">+ Add another Gmail</a>`;
+  }
+
+  syncArea.style.display = (d.primary || d.scan) ? 'block' : 'none';
 }
 
-async function doGmailDisconnect() {
-  await api('/api/gmail/disconnect', {method:'POST'});
+async function doGmailDisconnect(provider) {
+  await api('/api/gmail/disconnect', {method:'POST', body:JSON.stringify({provider: provider || 'google_scan'})});
   checkInboxStatus();
 }
 

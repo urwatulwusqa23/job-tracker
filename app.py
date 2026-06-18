@@ -21,8 +21,15 @@ app.permanent_session_lifetime = timedelta(days=30)
 DB_PATH    = os.getenv('DB_PATH', 'jobtracker.db')
 GROK_MODEL = os.getenv('GROK_MODEL', 'grok-3-mini')
 
-GMAIL_SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
-REDIRECT_URI = os.getenv('REDIRECT_URI', 'http://localhost:5001/auth/google/callback')
+GMAIL_SCOPES        = ['https://www.googleapis.com/auth/gmail.readonly']
+GOOGLE_LOGIN_SCOPES = [
+    'openid',
+    'https://www.googleapis.com/auth/userinfo.email',
+    'https://www.googleapis.com/auth/userinfo.profile',
+    'https://www.googleapis.com/auth/gmail.readonly',
+]
+REDIRECT_URI       = os.getenv('REDIRECT_URI',       'http://localhost:5001/auth/google/callback')
+REDIRECT_URI_LOGIN = os.getenv('REDIRECT_URI_LOGIN', 'http://localhost:5001/auth/google/login/callback')
 GMAIL_QUERY  = ('subject:(application OR interview OR "offer letter" OR position '
                 'OR vacancy OR hiring OR recruitment OR shortlisted OR assessment)')
 
@@ -203,24 +210,26 @@ def _oauth_client_config():
     }
 
 def _get_gmail_service(user_id):
+    """Returns Gmail service using the best available token (login → scan → legacy)."""
     conn = get_db()
-    row  = conn.execute(
-        "SELECT token_json FROM oauth_tokens WHERE provider='google' AND user_id=?", (user_id,)
-    ).fetchone()
+    for provider in ('google_login', 'google_scan', 'google'):
+        row = conn.execute(
+            "SELECT token_json FROM oauth_tokens WHERE provider=? AND user_id=?",
+            (provider, user_id)
+        ).fetchone()
+        if row:
+            creds = Credentials.from_authorized_user_info(json.loads(row['token_json']), GMAIL_SCOPES)
+            if creds.expired and creds.refresh_token:
+                creds.refresh(GoogleRequest())
+                conn.execute(
+                    "UPDATE oauth_tokens SET token_json=?, updated_at=datetime('now') WHERE provider=? AND user_id=?",
+                    (creds.to_json(), provider, user_id)
+                )
+                conn.commit()
+            conn.close()
+            return build('gmail', 'v1', credentials=creds)
     conn.close()
-    if not row:
-        return None
-    creds = Credentials.from_authorized_user_info(json.loads(row['token_json']), GMAIL_SCOPES)
-    if creds.expired and creds.refresh_token:
-        creds.refresh(GoogleRequest())
-        conn = get_db()
-        conn.execute(
-            "UPDATE oauth_tokens SET token_json=?, updated_at=datetime('now') WHERE provider='google' AND user_id=?",
-            (creds.to_json(), user_id)
-        )
-        conn.commit()
-        conn.close()
-    return build('gmail', 'v1', credentials=creds)
+    return None
 
 def _extract_body(payload):
     if payload.get('body', {}).get('data'):
@@ -371,6 +380,79 @@ def change_password():
 
 # ── Google OAuth routes ────────────────────────────────────────────────────────
 
+@app.route('/auth/google/login')
+def google_login_start():
+    """Start Google sign-in (login + Gmail access in one consent)."""
+    if not os.getenv('GOOGLE_CLIENT_ID') or not os.getenv('GOOGLE_CLIENT_SECRET'):
+        return redirect('/login?error=not_configured')
+    verifier, challenge = _pkce_pair()
+    flow = Flow.from_client_config(_oauth_client_config(), scopes=GOOGLE_LOGIN_SCOPES)
+    flow.redirect_uri = REDIRECT_URI_LOGIN
+    auth_url, state = flow.authorization_url(
+        access_type='offline', prompt='consent',
+        code_challenge=challenge, code_challenge_method='S256'
+    )
+    session['g_login_state']    = state
+    session['g_login_verifier'] = verifier
+    return redirect(auth_url)
+
+
+@app.route('/auth/google/login/callback')
+def google_login_callback():
+    """Handle Google sign-in callback — creates account if needed, stores Gmail token."""
+    if request.args.get('error'):
+        return redirect(f"/login?error={request.args.get('error')}")
+    state = request.args.get('state', '')
+    if session.get('g_login_state') != state:
+        return 'OAuth state mismatch', 400
+    verifier = session.pop('g_login_verifier', None)
+    session.pop('g_login_state', None)
+
+    flow = Flow.from_client_config(_oauth_client_config(), scopes=GOOGLE_LOGIN_SCOPES, state=state)
+    flow.redirect_uri = REDIRECT_URI_LOGIN
+    try:
+        flow.fetch_token(code=request.args.get('code', ''), code_verifier=verifier)
+    except Exception as e:
+        return redirect(f'/login?error=token_failed')
+
+    creds = flow.credentials
+    try:
+        info_svc = build('oauth2', 'v2', credentials=creds)
+        info     = info_svc.userinfo().get().execute()
+        email    = info.get('email', '').lower().strip()
+        name     = info.get('name', '')
+    except Exception:
+        return redirect('/login?error=profile_failed')
+
+    if not email:
+        return redirect('/login?error=no_email')
+
+    conn = get_db()
+    user = conn.execute('SELECT id, name FROM users WHERE email=?', (email,)).fetchone()
+    if user:
+        user_id = user['id']
+        if not user['name'] and name:
+            conn.execute('UPDATE users SET name=? WHERE id=?', (name, user_id))
+    else:
+        conn.execute('INSERT INTO users (email, password_hash, name) VALUES (?,?,?)',
+                     (email, generate_password_hash(secrets.token_hex(32)), name))
+        user_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+        conn.execute('UPDATE applications SET user_id=? WHERE user_id IS NULL', (user_id,))
+        conn.execute('UPDATE cv_files    SET user_id=? WHERE user_id IS NULL', (user_id,))
+
+    conn.execute(
+        "INSERT OR REPLACE INTO oauth_tokens (provider,user_id,token_json,email,updated_at) "
+        "VALUES ('google_login',?,?,?,datetime('now'))",
+        (user_id, creds.to_json(), email)
+    )
+    conn.commit()
+    conn.close()
+
+    session.permanent = True
+    session['user_id'] = user_id
+    return redirect('/')
+
+
 @app.route('/auth/google')
 @login_required
 def google_auth():
@@ -417,7 +499,7 @@ def google_callback():
         email = ''
     conn = get_db()
     conn.execute(
-        "INSERT OR REPLACE INTO oauth_tokens (provider,user_id,token_json,email,updated_at) VALUES ('google',?,?,?,datetime('now'))",
+        "INSERT OR REPLACE INTO oauth_tokens (provider,user_id,token_json,email,updated_at) VALUES ('google_scan',?,?,?,datetime('now'))",
         (user_id, creds.to_json(), email)
     )
     conn.commit()
@@ -429,18 +511,29 @@ def google_callback():
 @login_required
 def gmail_status():
     conn = get_db()
-    row  = conn.execute(
-        "SELECT email FROM oauth_tokens WHERE provider='google' AND user_id=?", (uid(),)
-    ).fetchone()
+    rows = conn.execute(
+        "SELECT provider, email FROM oauth_tokens WHERE user_id=? AND provider IN ('google_login','google_scan','google')",
+        (uid(),)
+    ).fetchall()
     conn.close()
-    return jsonify({'connected': bool(row), 'email': row['email'] if row else ''})
+    primary = scan = None
+    for r in rows:
+        if r['provider'] == 'google_login':
+            primary = r['email']
+        elif r['provider'] in ('google_scan', 'google'):
+            scan = r['email']
+    return jsonify({'primary': primary, 'scan': scan})
 
 
 @app.route('/api/gmail/disconnect', methods=['POST'])
 @login_required
 def gmail_disconnect():
+    data     = request.get_json() or {}
+    provider = data.get('provider', 'google_scan')
+    if provider not in ('google_scan', 'google'):
+        return jsonify({'error': 'Cannot disconnect login account here — use Sign Out instead'}), 400
     conn = get_db()
-    conn.execute("DELETE FROM oauth_tokens WHERE provider='google' AND user_id=?", (uid(),))
+    conn.execute("DELETE FROM oauth_tokens WHERE provider=? AND user_id=?", (provider, uid()))
     conn.commit()
     conn.close()
     return jsonify({'success': True})
