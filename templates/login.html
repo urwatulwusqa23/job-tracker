@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Hired — {{ 'Create Account' if mode == 'register' else 'Sign In' }}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0e0d0b;--s1:#161512;--s2:#1e1c18;--s3:#252320;
+  --border:#2c2a26;--accent:#e8ff47;--text:#f0ede6;
+  --sub:#8a8680;--muted:#504e4a;--red:#ff5c5c;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif}
+body{display:flex;align-items:center;justify-content:center;padding:24px}
+
+.card{
+  width:100%;max-width:420px;background:var(--s1);
+  border:1px solid var(--border);border-radius:18px;padding:40px 36px;
+}
+.logo{
+  font-family:'Space Grotesk',sans-serif;font-size:2rem;font-weight:700;
+  color:var(--accent);letter-spacing:-.04em;margin-bottom:6px;
+}
+.tagline{font-size:.82rem;color:var(--sub);margin-bottom:32px}
+
+h2{font-size:1.15rem;font-weight:600;margin-bottom:6px}
+.sub{font-size:.78rem;color:var(--sub);margin-bottom:28px}
+
+label{display:block;font-size:.75rem;color:var(--sub);font-weight:500;margin-bottom:6px;margin-top:16px;letter-spacing:.04em;text-transform:uppercase}
+input{
+  width:100%;padding:11px 14px;background:var(--s2);border:1px solid var(--border);
+  border-radius:10px;color:var(--text);font-size:.88rem;font-family:inherit;
+  transition:border-color .15s;outline:none;
+}
+input:focus{border-color:var(--accent)}
+
+.btn{
+  width:100%;padding:12px;margin-top:24px;
+  background:var(--accent);color:#0e0d0b;border:none;border-radius:10px;
+  font-size:.88rem;font-weight:700;font-family:inherit;cursor:pointer;
+  transition:opacity .15s;
+}
+.btn:hover{opacity:.88}
+
+.error{
+  background:#ff5c5c18;border:1px solid #ff5c5c40;color:var(--red);
+  padding:10px 14px;border-radius:10px;font-size:.8rem;margin-top:16px;
+}
+.switch{margin-top:24px;text-align:center;font-size:.78rem;color:var(--sub)}
+.switch a{color:var(--accent);text-decoration:none;font-weight:500}
+.switch a:hover{text-decoration:underline}
+.divider{border:none;border-top:1px solid var(--border);margin:28px 0}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">Hired</div>
+  <div class="tagline">AI-powered job search tracker</div>
+
+  {% if mode == 'register' %}
+  <h2>Create your account</h2>
+  <div class="sub">You're the first user — set up your account to get started.</div>
+
+  {% if error %}
+  <div class="error">{{ error }}</div>
+  {% endif %}
+
+  <form method="POST" action="/register">
+    <label>Full name</label>
+    <input type="text" name="name" placeholder="Jane Smith" required autocomplete="name"/>
+    <label>Email</label>
+    <input type="email" name="email" placeholder="you@email.com" required autocomplete="email"/>
+    <label>Password</label>
+    <input type="password" name="password" placeholder="At least 8 characters" required autocomplete="new-password"/>
+    <button class="btn" type="submit">Create Account</button>
+  </form>
+
+  {% else %}
+  <h2>Welcome back</h2>
+  <div class="sub">Sign in to your job tracker.</div>
+
+  {% if error %}
+  <div class="error">{{ error }}</div>
+  {% endif %}
+
+  <form method="POST" action="/login">
+    <label>Email</label>
+    <input type="email" name="email" placeholder="you@email.com" required autocomplete="email" autofocus/>
+    <label>Password</label>
+    <input type="password" name="password" placeholder="••••••••" required autocomplete="current-password"/>
+    <button class="btn" type="submit">Sign In</button>
+  </form>
+
+  {% if can_register %}
+  <div class="switch">No account yet? <a href="/register">Create one</a></div>
+  {% endif %}
+  {% endif %}
+</div>
+</body>
+</html>

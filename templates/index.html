@@ -367,7 +367,26 @@ prio-High{color:var(--red)}
   .course-grid{grid-template-columns:1fr}
   .fg2{grid-template-columns:1fr}
   .page{padding:24px 20px}
+  .profile-wrap{grid-template-columns:1fr}
 }
+
+/* ── User / Profile ─────────────────────────────── */
+.sidebar-user-av{
+  width:34px;height:34px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:.82rem;font-weight:700;font-family:'Space Grotesk',sans-serif;
+  color:#0e0d0b;cursor:pointer;margin:6px auto 4px;flex-shrink:0;
+  transition:opacity .15s;user-select:none;
+}
+.sidebar-user-av:hover{opacity:.8}
+.profile-wrap{display:grid;grid-template-columns:220px 1fr;gap:24px;align-items:start;margin-top:24px}
+.profile-left{background:var(--s1);border:1px solid var(--border);border-radius:16px;padding:28px 20px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px;position:sticky;top:0}
+.profile-av-big{width:80px;height:80px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:2.2rem;font-weight:700;font-family:'Space Grotesk',sans-serif;color:#0e0d0b;margin-bottom:10px}
+.profile-name-d{font-weight:600;font-size:.95rem}
+.profile-right{background:var(--s1);border:1px solid var(--border);border-radius:16px;padding:28px}
+.profile-section-label{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--sub);font-weight:600;margin-bottom:18px}
+.alert-ok{background:rgba(61,220,132,.1);border:1px solid rgba(61,220,132,.3);color:var(--green);border-radius:8px;padding:9px 14px;font-size:.8rem;margin-bottom:12px;display:none}
+.alert-ok.show{display:block}
 </style>
 </head>
 <body>
@@ -375,6 +394,7 @@ prio-High{color:var(--red)}
 <!-- ═══════════════ SIDEBAR ═══════════════ -->
 <div id="sidebar">
   <div class="sidebar-logo" title="Hired">H</div>
+  <div class="sidebar-user-av" id="nav-avatar" onclick="document.querySelector('[data-page=profile]').click()" title="Profile"></div>
 
   <button class="nav-btn active" data-page="dashboard">
     <span>⬡</span><span class="tooltip">Dashboard</span>
@@ -403,6 +423,13 @@ prio-High{color:var(--red)}
     <button class="nav-btn" data-page="prep">
       <span>✦</span><span class="tooltip">Interview Prep</span>
     </button>
+    <div class="sidebar-divider"></div>
+    <button class="nav-btn" data-page="profile">
+      <span>◉</span><span class="tooltip">Profile</span>
+    </button>
+    <a href="/logout" class="nav-btn" style="text-decoration:none;display:flex;align-items:center;justify-content:center" title="Sign out">
+      <span>⏻</span><span class="tooltip">Sign Out</span>
+    </a>
   </div>
 </div>
 
@@ -518,7 +545,7 @@ prio-High{color:var(--red)}
           <span id="inbox-email-display" style="font-size:.8rem;color:var(--sub)"></span>
           <button class="btn btn-ghost btn-xs" onclick="doGmailDisconnect()">Disconnect</button>
         </div>
-        <p class="import-desc" style="margin:0">Sync scans your inbox for job emails. Rejections are matched to your tracked applications and updated automatically. Other emails appear below for you to review.</p>
+        <p class="import-desc" style="margin:0">Sync scans your inbox, auto-extracts new job applications and adds them to your tracker, and silently marks rejections for companies you're already tracking.</p>
         <div class="alert alert-err" id="inbox-sync-err"></div>
         <button class="btn btn-accent" id="btn-sync-inbox" onclick="doGmailSync('inbox')">⟳ Sync Now</button>
 
@@ -661,6 +688,49 @@ prio-High{color:var(--red)}
   </div>
 </div>
 
+<!-- ▸▸ PROFILE -->
+<div class="page" id="pg-profile">
+  <div class="page-title">Profile</div>
+  <div class="page-sub">Your account & personal details</div>
+
+  <div class="profile-wrap">
+    <div class="profile-left">
+      <div class="profile-av-big" id="profile-avatar-big"></div>
+      <div class="profile-name-d" id="profile-disp-name">Loading…</div>
+      <div style="color:var(--sub);font-size:.8rem;margin-top:2px" id="profile-disp-hl"></div>
+      <div style="color:var(--muted);font-size:.75rem;margin-top:4px" id="profile-disp-loc"></div>
+      <div style="color:var(--muted);font-size:.73rem;margin-top:16px;border-top:1px solid var(--border);padding-top:12px;width:100%" id="profile-disp-since"></div>
+    </div>
+
+    <div class="profile-right">
+      <div class="profile-section-label">Account Details</div>
+      <div class="alert alert-err" id="profile-err"></div>
+      <div class="alert alert-ok" id="profile-ok"></div>
+      <div class="fg2">
+        <div class="fg"><label>Full Name</label><input id="p-name" placeholder="Jane Smith"/></div>
+        <div class="fg"><label>Email</label><input id="p-email" disabled style="opacity:.45;cursor:not-allowed"/></div>
+        <div class="fg full"><label>Headline</label><input id="p-headline" placeholder="e.g. Senior Backend Engineer · Open to work"/></div>
+        <div class="fg"><label>Location</label><input id="p-location" placeholder="London, UK"/></div>
+        <div class="fg"><label>LinkedIn</label><input id="p-linkedin" placeholder="https://linkedin.com/in/…"/></div>
+        <div class="fg"><label>GitHub</label><input id="p-github" placeholder="https://github.com/…"/></div>
+        <div class="fg full"><label>Portfolio / Website</label><input id="p-portfolio" placeholder="https://yoursite.com"/></div>
+      </div>
+      <button class="btn btn-accent" style="margin-top:18px;width:auto;padding:10px 24px" id="btn-save-profile" onclick="saveProfile()">Save Changes</button>
+
+      <hr style="border:none;border-top:1px solid var(--border);margin:28px 0"/>
+
+      <div class="profile-section-label">Change Password</div>
+      <div class="alert alert-err" id="pw-err"></div>
+      <div class="alert alert-ok" id="pw-ok"></div>
+      <div class="fg2">
+        <div class="fg"><label>Current Password</label><input type="password" id="p-pw-cur" autocomplete="current-password"/></div>
+        <div class="fg"><label>New Password</label><input type="password" id="p-pw-new" placeholder="At least 8 characters" autocomplete="new-password"/></div>
+      </div>
+      <button class="btn btn-ghost" style="margin-top:14px;width:auto;padding:10px 24px" id="btn-save-pw" onclick="changePassword()">Update Password</button>
+    </div>
+  </div>
+</div>
+
 </div><!-- /content -->
 
 
@@ -761,6 +831,7 @@ document.querySelectorAll('.nav-btn[data-page]').forEach(btn => {
     if (btn.dataset.page === 'inbox')     checkInboxStatus();
     if (btn.dataset.page === 'prep')      fillPrepSel();
     if (btn.dataset.page === 'cv')        loadCVs();
+    if (btn.dataset.page === 'profile')   loadProfile();
   });
 });
 
@@ -769,6 +840,7 @@ document.querySelectorAll('.nav-btn[data-page]').forEach(btn => {
 // ══════════════════════════════════════════════════
 async function api(url, opts={}) {
   const r = await fetch(url, {headers:{'Content-Type':'application/json'}, ...opts});
+  if (r.status === 401) { window.location.href = '/login'; return {}; }
   return r.json();
 }
 
@@ -950,7 +1022,7 @@ async function doGmailSync(source) {
   if (inboxErr) inboxErr.classList.remove('show');
   if (banner) { banner.className = 'sync-banner'; banner.textContent = ''; }
 
-  setLoading(btn, true, '⟳ Syncing…');
+  setLoading(btn, true, '⟳ Syncing & extracting…');
   try {
     const d = await api('/api/gmail/sync', {method:'POST'});
 
@@ -960,26 +1032,23 @@ async function doGmailSync(source) {
       return;
     }
 
-    window._syncEmails = d.emails || [];
-    const nRej = d.auto_rejected?.length || 0;
-    const nNew = d.emails?.length || 0;
+    const nRej   = d.auto_rejected?.length || 0;
+    const nAdded = d.auto_added?.length || 0;
 
     // Dashboard banner
     if (banner) {
-      let msg = nRej
-        ? `✓ ${nRej} rejection${nRej>1?'s':''} auto-updated.`
-        : '✓ Sync complete.';
-      if (nNew) msg += ` ${nNew} email${nNew>1?'s':''} to review in Inbox.`;
-      banner.textContent = msg;
+      const parts = [];
+      if (nAdded) parts.push(`${nAdded} application${nAdded>1?'s':''} added`);
+      if (nRej)   parts.push(`${nRej} rejection${nRej>1?'s':''} updated`);
+      banner.textContent = parts.length ? '✓ ' + parts.join(' · ') : '✓ Sync complete — nothing new.';
       banner.className = 'sync-banner ok show';
     }
 
     // Inbox results
     if (source === 'inbox') renderSyncResults(d);
 
-    // Refresh dashboard data silently
     loadDash();
-    if (currentView !== null) {/* don't auto-refresh apps page if user didn't open it */}
+    loadApps();
 
   } catch(e) {
     if (banner) { banner.textContent = '⚠ ' + e.message; banner.className = 'sync-banner err show'; }
@@ -1002,40 +1071,31 @@ function renderSyncResults(d) {
     rejSec.style.display = 'block';
     rejList.innerHTML = d.auto_rejected.map(r =>
       `<div class="rejected-item">
-        <span style="color:var(--green)">✓</span>
-        <span><strong>${r.company}</strong> — <span style="color:var(--sub)">${r.subject}</span></span>
+        <span style="color:var(--red)">✗</span>
+        <span><strong>${r.company}</strong> — marked Rejected</span>
       </div>`
     ).join('');
   } else {
     rejSec.style.display = 'none';
   }
 
-  if (d.emails?.length) {
-    emSec.style.display = 'block';
-    emList.innerHTML = '';
-    d.emails.forEach((em, i) => {
-      const c = document.createElement('div');
-      c.className = 'email-card';
-      c.innerHTML = `
-        <div class="email-subj">${em.subject}</div>
-        <div class="email-from">${em.sender} · ${em.date}</div>
-        <div class="email-body">${em.body.slice(0,240)}</div>
-        <button class="btn btn-accent btn-xs" style="width:fit-content" onclick="extractSyncEmail(${i})">Extract & Add</button>`;
-      emList.appendChild(c);
-    });
+  emSec.style.display = 'block';
+  if (d.auto_added?.length) {
+    emList.innerHTML = `
+      <p style="font-size:.78rem;color:var(--green);margin-bottom:.5rem">
+        ✓ ${d.auto_added.length} application${d.auto_added.length>1?'s':''} added automatically
+      </p>` +
+      d.auto_added.map(a =>
+        `<div class="rejected-item">
+          <span style="color:var(--green)">+</span>
+          <span><strong>${a.company}</strong> — ${a.role}</span>
+        </div>`
+      ).join('') +
+      (d.skipped?.length ? `<p style="font-size:.73rem;color:var(--muted);margin-top:.5rem">${d.skipped.length} already tracked (skipped)</p>` : '');
   } else {
-    emSec.style.display = 'none';
-    if (!d.auto_rejected?.length) {
-      emList.innerHTML = '<p style="font-size:.78rem;color:var(--muted)">No new job emails found.</p>';
-      emSec.style.display = 'block';
-    }
+    const nothing = !d.auto_rejected?.length;
+    emList.innerHTML = `<p style="font-size:.78rem;color:var(--muted)">${nothing ? 'No new job emails found.' : 'No new applications to add.'}</p>`;
   }
-}
-
-async function extractSyncEmail(i) {
-  const em = window._syncEmails[i];
-  document.getElementById('paste-text').value = `Subject: ${em.subject}\nFrom: ${em.sender}\n\n${em.body}`;
-  await doExtract();
 }
 
 // ══════════════════════════════════════════════════
@@ -1457,8 +1517,87 @@ function relTime(ts) {
 }
 
 // ══════════════════════════════════════════════════
+//  PROFILE
+// ══════════════════════════════════════════════════
+function _avatarColor(name) {
+  const hue = ((name || '?').charCodeAt(0) * 37) % 360;
+  return `hsl(${hue},60%,58%)`;
+}
+function _setAvatar(el, name) {
+  if (!el) return;
+  el.textContent    = (name || '?')[0].toUpperCase();
+  el.style.background = _avatarColor(name);
+}
+
+async function loadProfile() {
+  const d = await api('/api/me');
+  if (!d || d.error) return;
+
+  _setAvatar(document.getElementById('nav-avatar'), d.name);
+  _setAvatar(document.getElementById('profile-avatar-big'), d.name);
+
+  document.getElementById('profile-disp-name').textContent = d.name || 'No name set';
+  document.getElementById('profile-disp-hl').textContent   = d.headline  || '';
+  document.getElementById('profile-disp-loc').textContent  = d.location  || '';
+  const sinceEl = document.getElementById('profile-disp-since');
+  if (sinceEl) sinceEl.textContent = d.created_at
+    ? 'Member since ' + new Date(d.created_at).toLocaleDateString('en-GB',{month:'short',year:'numeric'})
+    : '';
+
+  document.getElementById('p-name').value      = d.name          || '';
+  document.getElementById('p-email').value     = d.email         || '';
+  document.getElementById('p-headline').value  = d.headline      || '';
+  document.getElementById('p-location').value  = d.location      || '';
+  document.getElementById('p-linkedin').value  = d.linkedin_url  || '';
+  document.getElementById('p-github').value    = d.github_url    || '';
+  document.getElementById('p-portfolio').value = d.portfolio_url || '';
+}
+
+async function saveProfile() {
+  const btn = document.getElementById('btn-save-profile');
+  const err = document.getElementById('profile-err');
+  const ok  = document.getElementById('profile-ok');
+  err.classList.remove('show'); ok.classList.remove('show');
+  setLoading(btn, true, 'Saving…');
+  try {
+    const d = await api('/api/me', {method:'PUT', body:JSON.stringify({
+      name:          document.getElementById('p-name').value,
+      headline:      document.getElementById('p-headline').value,
+      location:      document.getElementById('p-location').value,
+      linkedin_url:  document.getElementById('p-linkedin').value,
+      github_url:    document.getElementById('p-github').value,
+      portfolio_url: document.getElementById('p-portfolio').value,
+    })});
+    if (d.error) { showErr(err, d.error); return; }
+    ok.textContent = '✓ Profile saved'; ok.classList.add('show');
+    loadProfile();
+  } catch(e) { showErr(err, e.message); }
+  finally { setLoading(btn, false, 'Save Changes'); }
+}
+
+async function changePassword() {
+  const btn = document.getElementById('btn-save-pw');
+  const err = document.getElementById('pw-err');
+  const ok  = document.getElementById('pw-ok');
+  err.classList.remove('show'); ok.classList.remove('show');
+  const cur = document.getElementById('p-pw-cur').value;
+  const nw  = document.getElementById('p-pw-new').value;
+  if (!cur || !nw) { showErr(err, 'Both fields are required'); return; }
+  setLoading(btn, true, 'Updating…');
+  try {
+    const d = await api('/api/me/password', {method:'PUT', body:JSON.stringify({current_password:cur, new_password:nw})});
+    if (d.error) { showErr(err, d.error); return; }
+    ok.textContent = '✓ Password updated'; ok.classList.add('show');
+    document.getElementById('p-pw-cur').value = '';
+    document.getElementById('p-pw-new').value = '';
+  } catch(e) { showErr(err, e.message); }
+  finally { setLoading(btn, false, 'Update Password'); }
+}
+
+// ══════════════════════════════════════════════════
 //  BOOT
 // ══════════════════════════════════════════════════
+loadProfile();
 loadDash();
 checkInboxStatus();
 </script>
