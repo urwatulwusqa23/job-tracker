@@ -1,19 +1,58 @@
-# render.yaml — Render.com deployment config
-# Connect your GitHub repo at render.com and it auto-deploys
+# render.yaml — Render.com deployment config (Blueprint)
+#
+# Deploy:
+#   1. Push this repo to GitHub.
+#   2. In the Render dashboard: New -> Blueprint -> connect this repo.
+#      Render reads this file and creates the service automatically.
+#   3. Set the "sync: false" secrets below in the Render dashboard
+#      (Environment tab) before or right after the first deploy.
+#   4. Redeploy once REDIRECT_URI / REDIRECT_URI_LOGIN are set to your
+#      real Render URL (see caveats below).
+#
+# Free-tier caveats:
+#   - The free web service spins down after 15 min of inactivity
+#     (cold start ~30-60s on the next request).
+#   - The free plan has NO persistent disk, so the SQLite file is wiped
+#     on every deploy/restart. Fine for a demo/portfolio deployment;
+#     for real persistent data, either add a paid disk or point
+#     DATABASE_URL at a managed Postgres instance (Render's free Postgres
+#     works with this app out of the box — psycopg2 is already a dependency).
 
 services:
   - type: web
     name: job-tracker-ai
     runtime: docker
-    plan: free                    # free tier — spins down after 15 min inactivity, cold start ~30s
+    plan: free
     dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
     envVars:
-      - key: XAI_API_KEY
-        sync: false               # set this in Render dashboard — get free key at console.x.ai
-      - key: GROK_MODEL
-        value: grok-3-mini
-      - key: DB_PATH
-        value: /data/jobtracker.db # ⚠ Render free has no persistent disk — data resets on restart. Upgrade to Starter ($7/mo) and add a Disk to fix this
+      - key: SECRET_KEY
+        generateValue: true # Render generates a strong random JWT signing secret
+      - key: ENVIRONMENT
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
       - key: PORT
         value: 8080
-    healthCheckPath: /
+      - key: DB_PATH
+        value: /data/jobtracker.db # ephemeral on the free plan — see caveats above
+      - key: FRONTEND_URL
+        sync: false # set to https://<your-app>.onrender.com after the first deploy assigns your URL
+      - key: ALLOWED_ORIGINS
+        value: "*"
+      - key: XAI_API_KEY
+        sync: false # set in dashboard — free key at console.groq.com or console.x.ai
+      - key: GROK_MODEL
+        value: grok-3-mini
+      - key: AI_BASE_URL
+        value: https://api.x.ai/v1
+      - key: GOOGLE_CLIENT_ID
+        sync: false # optional — only needed for Google sign-in / Gmail scan
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: REDIRECT_URI
+        sync: false # set to https://<your-app>.onrender.com/auth/google/callback
+      - key: REDIRECT_URI_LOGIN
+        sync: false # set to https://<your-app>.onrender.com/auth/google/login/callback
+      - key: SENTRY_DSN
+        sync: false # optional — leave unset to disable error tracking

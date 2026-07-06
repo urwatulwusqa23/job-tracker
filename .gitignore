@@ -3,6 +3,7 @@
 
 # Database — local only
 *.db
+*.db.flask-backup
 *.sqlite
 *.sqlite3
 /data/
@@ -14,10 +15,18 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+.venv/
 
 # Logs
 *.log
 server.log
+
+# Test / lint artifacts
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
+.ruff_cache/
 
 # OS
 .DS_Store

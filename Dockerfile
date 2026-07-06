@@ -14,6 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .
+RUN chmod +x docker-entrypoint.sh
 
 # Create data directory for SQLite
 RUN mkdir -p /data
@@ -24,11 +25,6 @@ ENV PORT=8080
 
 EXPOSE 8080
 
-# Gunicorn: 2 workers, 120s timeout (AI calls can take ~25s)
-CMD ["gunicorn", \
-     "--bind", "0.0.0.0:8080", \
-     "--workers", "2", \
-     "--timeout", "120", \
-     "--access-logfile", "-", \
-     "--error-logfile", "-", \
-     "app:app"]
+# Runs pending Alembic migrations, then starts gunicorn with uvicorn workers
+# (2 workers, 120s timeout — AI calls can take ~25s)
+ENTRYPOINT ["./docker-entrypoint.sh"]

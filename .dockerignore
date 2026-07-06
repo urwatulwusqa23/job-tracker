@@ -8,6 +8,7 @@ __pycache__/
 dist/
 build/
 .eggs/
+.venv/
 
 # Env & secrets
 .env
@@ -30,3 +31,14 @@ jobtracker.db
 Dockerfile
 docker-compose.yml
 .dockerignore
+
+# CI / tests / tooling — not needed in the runtime image
+.github/
+tests/
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
+.ruff_cache/
+requirements-dev.txt
+README.md

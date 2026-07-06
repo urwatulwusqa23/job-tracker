@@ -427,7 +427,7 @@ prio-High{color:var(--red)}
     <button class="nav-btn" data-page="profile">
       <span>◉</span><span class="tooltip">Profile</span>
     </button>
-    <a href="/logout" class="nav-btn" style="text-decoration:none;display:flex;align-items:center;justify-content:center" title="Sign out">
+    <a href="#" onclick="doLogout();return false" class="nav-btn" style="text-decoration:none;display:flex;align-items:center;justify-content:center" title="Sign out">
       <span>⏻</span><span class="tooltip">Sign Out</span>
     </a>
   </div>
@@ -804,6 +804,61 @@ prio-High{color:var(--red)}
 
 <script>
 // ══════════════════════════════════════════════════
+//  AUTH (JWT — access token in memory-backed localStorage, refresh on 401)
+// ══════════════════════════════════════════════════
+const AUTH = {
+  get access()  { return localStorage.getItem('access_token'); },
+  get refresh() { return localStorage.getItem('refresh_token'); },
+  set(access, refresh) {
+    localStorage.setItem('access_token', access);
+    if (refresh) localStorage.setItem('refresh_token', refresh);
+  },
+  clear() {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+  },
+};
+
+(function bootstrapAuth() {
+  // Bridges tokens handed off by the Google OAuth login redirect (?access_token=&refresh_token=)
+  const params = new URLSearchParams(window.location.search);
+  const bridgedAccess  = params.get('access_token');
+  const bridgedRefresh = params.get('refresh_token');
+  if (bridgedAccess) {
+    AUTH.set(bridgedAccess, bridgedRefresh);
+    params.delete('access_token');
+    params.delete('refresh_token');
+    const rest = params.toString();
+    history.replaceState({}, '', window.location.pathname + (rest ? '?' + rest : ''));
+  }
+  if (!AUTH.access) window.location.href = '/login';
+})();
+
+function doLogout() {
+  AUTH.clear();
+  window.location.href = '/login';
+}
+
+async function tryRefreshToken() {
+  if (!AUTH.refresh) return false;
+  try {
+    const r = await fetch('/api/auth/refresh', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({refresh_token: AUTH.refresh}),
+    });
+    if (!r.ok) return false;
+    const d = await r.json();
+    AUTH.set(d.access_token, d.refresh_token);
+    return true;
+  } catch { return false; }
+}
+
+function gmailConnectUrl() {
+  return '/auth/google?token=' + encodeURIComponent(AUTH.access || '');
+}
+
+// ══════════════════════════════════════════════════
 //  STATE
 // ══════════════════════════════════════════════════
 let allApps = [], editId = null, currentView = 'list';
@@ -841,8 +896,20 @@ document.querySelectorAll('.nav-btn[data-page]').forEach(btn => {
 //  API HELPER
 // ══════════════════════════════════════════════════
 async function api(url, opts={}) {
-  const r = await fetch(url, {headers:{'Content-Type':'application/json'}, ...opts});
-  if (r.status === 401) { window.location.href = '/login'; return {}; }
+  const headers = {'Content-Type': 'application/json', ...(opts.headers || {})};
+  if (AUTH.access) headers['Authorization'] = 'Bearer ' + AUTH.access;
+
+  let r = await fetch(url, {...opts, headers});
+  if (r.status === 401) {
+    if (await tryRefreshToken()) {
+      headers['Authorization'] = 'Bearer ' + AUTH.access;
+      r = await fetch(url, {...opts, headers});
+    } else {
+      AUTH.clear();
+      window.location.href = '/login';
+      return {};
+    }
+  }
   return r.json();
 }
 
@@ -1134,7 +1201,7 @@ async function checkInboxStatus() {
   } else {
     scanArea.innerHTML = `
       <p class="import-desc" style="margin:0 0 10px;font-size:.78rem">Add a second Gmail (e.g. personal vs work) to also scan for job emails.</p>
-      <a href="/auth/google" class="btn btn-ghost btn-sm" style="text-decoration:none;display:inline-flex;width:fit-content">+ Add another Gmail</a>`;
+      <a href="${gmailConnectUrl()}" class="btn btn-ghost btn-sm" style="text-decoration:none;display:inline-flex;width:fit-content">+ Add another Gmail</a>`;
   }
 
   syncArea.style.display = (d.primary || d.scan) ? 'block' : 'none';
@@ -1277,7 +1344,7 @@ async function loadCVs() {
       </div>
       ${c.is_active ? '<span class="cv-active-badge">Active</span>'
                     : `<button class="btn btn-ghost btn-xs" onclick="activateCV(${c.id})">Set Active</button>`}
-      <a href="/api/cv/${c.id}/download" class="btn btn-ghost btn-xs">↓</a>
+      <a href="/api/cv/${c.id}/download?token=${encodeURIComponent(AUTH.access||'')}" class="btn btn-ghost btn-xs">↓</a>
     </div>`).join('');
   try {
     const t = await api('/api/cv/active_text');
@@ -1291,7 +1358,7 @@ async function doUploadCV(file) {
   status.innerHTML = '<span style="font-size:.8rem;color:var(--sub)"><span class="spinner spinner-w" style="border-top-color:var(--accent)"></span> Uploading…</span>';
   const fd = new FormData(); fd.append('file', file);
   try {
-    const r = await fetch('/api/cv', {method:'POST', body:fd});
+    const r = await fetch('/api/cv', {method:'POST', body:fd, headers: AUTH.access ? {'Authorization':'Bearer '+AUTH.access} : {}});
     const d = await r.json();
     if (d.error) { status.innerHTML = `<span style="color:var(--red)">${d.error}</span>`; return; }
     status.innerHTML = '<span style="color:var(--green)">✓ CV uploaded and set as active</span>';
