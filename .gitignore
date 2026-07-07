@@ -31,3 +31,6 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local Claude Code settings (permissions, launch config) — machine-specific
+.claude/
