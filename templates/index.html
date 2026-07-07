@@ -577,6 +577,18 @@ prio-High{color:var(--red)}
       </div>
     </div>
 
+    <!-- Paste job URL — no Gmail/email access needed at all -->
+    <div class="import-card">
+      <div class="import-card-title">🔗 Paste a Job Posting Link</div>
+      <div class="import-desc">Don't want to connect Gmail? Paste the URL of a job listing (company careers page, job board, etc.) and AI will fetch and extract the details for you.</div>
+      <input id="paste-url" type="url" placeholder="https://company.com/careers/backend-engineer" style="width:100%;padding:11px 14px;background:var(--s2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:.88rem;font-family:inherit"/>
+      <div class="alert alert-err" id="paste-url-err" style="margin-top:10px"></div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn btn-accent" id="btn-extract-url" onclick="doExtractUrl()">🤖 Fetch &amp; Extract with AI</button>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('paste-url').value=''">Clear</button>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -1307,6 +1319,29 @@ async function doExtract() {
     openOv('ov-ex');
   } catch(e) { showErr(err, e.message); }
   finally { setLoading(btn, false, '🤖 Extract with AI', true); }
+}
+
+async function doExtractUrl() {
+  const url = document.getElementById('paste-url').value.trim();
+  const err = document.getElementById('paste-url-err');
+  if (!url) { showErr(err, 'Paste a job posting URL first'); return; }
+  err.classList.remove('show');
+  const btn = document.getElementById('btn-extract-url');
+  setLoading(btn, true, 'Fetching…', true);
+  try {
+    const d = await api('/api/extract_job', {method:'POST', body:JSON.stringify({url})});
+    if (d.error) { showErr(err, d.error); return; }
+    document.getElementById('ex-co').value    = d.company||'';
+    document.getElementById('ex-role').value  = d.role||'';
+    document.getElementById('ex-loc').value   = d.location||'';
+    document.getElementById('ex-sal').value   = d.salary||'';
+    document.getElementById('ex-url').value   = d.job_url||url;
+    document.getElementById('ex-jd').value    = d.job_description||'';
+    document.getElementById('ex-src').value   = d.source||'';
+    document.getElementById('ex-notes').value = d.notes||'';
+    openOv('ov-ex');
+  } catch(e) { showErr(err, e.message); }
+  finally { setLoading(btn, false, '🤖 Fetch &amp; Extract with AI', true); }
 }
 
 async function saveExtracted() {

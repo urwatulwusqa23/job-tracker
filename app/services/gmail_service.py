@@ -16,11 +16,14 @@ from app.models.oauth_token import OAuthToken
 from app.services.ai_service import ai_extract_job
 
 GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
+# Deliberately non-sensitive scopes only — Google never shows the "unverified app" warning
+# for these, unlike gmail.readonly (a restricted scope). Gmail access is requested
+# separately, only when a user explicitly clicks "Connect Gmail" (see GMAIL_SCOPES / the
+# /auth/google connect flow), so most users never see that warning at all.
 GOOGLE_LOGIN_SCOPES = [
     "openid",
     "https://www.googleapis.com/auth/userinfo.email",
     "https://www.googleapis.com/auth/userinfo.profile",
-    "https://www.googleapis.com/auth/gmail.readonly",
 ]
 
 GMAIL_QUERY = (
@@ -65,8 +68,12 @@ def extract_body(payload: dict) -> str:
 
 
 def get_gmail_service(db: Session, user_id: int):
-    """Returns an authenticated Gmail service using the best available token (login -> scan -> legacy)."""
-    for provider in ("google_login", "google_scan", "google"):
+    """Returns an authenticated Gmail service from a "Connect Gmail" token.
+
+    Only google_scan/google tokens are checked — google_login tokens never carry the
+    gmail.readonly scope (see GOOGLE_LOGIN_SCOPES), so they can't build a working service.
+    """
+    for provider in ("google_scan", "google"):
         row = db.query(OAuthToken).filter_by(user_id=user_id, provider=provider).first()
         if row:
             import json as _json

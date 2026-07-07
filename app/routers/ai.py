@@ -25,6 +25,7 @@ from app.services.ai_service import (
     require_ai,
 )
 from app.services.job_board_service import fetch_remotive_jobs
+from app.services.url_fetch_service import fetch_job_posting_text
 
 router = APIRouter(prefix="/api", tags=["ai"])
 
@@ -32,11 +33,18 @@ router = APIRouter(prefix="/api", tags=["ai"])
 @router.post("/extract_job", response_model=ExtractJobResponse)
 def extract_job(payload: ExtractJobRequest, user: User = Depends(get_current_user)):
     client = require_ai()
-    if not payload.text:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No text provided")
-    result = ai_extract_job(client, payload.text)
+
+    text = payload.text
+    if not text and payload.url:
+        text = fetch_job_posting_text(payload.url)
+    if not text:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No text or URL provided")
+
+    result = ai_extract_job(client, text)
     if not result:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="AI could not parse the text")
+    if not result.get("job_url") and payload.url:
+        result["job_url"] = payload.url
     return ExtractJobResponse(**result)
 
 

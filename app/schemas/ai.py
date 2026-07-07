@@ -2,7 +2,8 @@ from pydantic import BaseModel
 
 
 class ExtractJobRequest(BaseModel):
-    text: str
+    text: str | None = None
+    url: str | None = None
 
 
 class ExtractJobResponse(BaseModel):

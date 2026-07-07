@@ -47,6 +47,51 @@ def test_extract_job_ai_parse_failure_500(client, auth_headers, monkeypatch):
     assert r.status_code == 500
 
 
+def test_extract_job_no_text_or_url_400(client, auth_headers, monkeypatch):
+    monkeypatch.setattr(ai_router, "require_ai", lambda: MagicMock())
+    r = client.post("/api/extract_job", headers=auth_headers, json={})
+    assert r.status_code == 400
+
+
+def test_extract_job_from_url_fetches_and_extracts(client, auth_headers, monkeypatch):
+    fake_client = _mock_chat_response(json.dumps({"company": "Acme", "role": "Engineer"}))
+    monkeypatch.setattr(ai_router, "require_ai", lambda: fake_client)
+    monkeypatch.setattr(ai_router, "fetch_job_posting_text", lambda url: "Acme is hiring an Engineer")
+
+    r = client.post("/api/extract_job", headers=auth_headers, json={"url": "https://example.com/jobs/1"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["company"] == "Acme"
+    # AI didn't return a job_url, so the router fills it in from the URL the user gave us
+    assert body["job_url"] == "https://example.com/jobs/1"
+
+
+def test_extract_job_from_url_keeps_ai_extracted_url_if_present(client, auth_headers, monkeypatch):
+    fake_client = _mock_chat_response(json.dumps({"company": "Acme", "job_url": "https://acme.com/apply"}))
+    monkeypatch.setattr(ai_router, "require_ai", lambda: fake_client)
+    monkeypatch.setattr(ai_router, "fetch_job_posting_text", lambda url: "some page text")
+
+    r = client.post("/api/extract_job", headers=auth_headers, json={"url": "https://example.com/jobs/1"})
+    assert r.status_code == 200
+    assert r.json()["job_url"] == "https://acme.com/apply"
+
+
+def test_extract_job_text_takes_priority_over_url(client, auth_headers, monkeypatch):
+    fake_client = _mock_chat_response(json.dumps({"company": "FromText"}))
+    monkeypatch.setattr(ai_router, "require_ai", lambda: fake_client)
+
+    def _should_not_be_called(url):
+        raise AssertionError("fetch_job_posting_text should not be called when text is provided")
+
+    monkeypatch.setattr(ai_router, "fetch_job_posting_text", _should_not_be_called)
+
+    r = client.post("/api/extract_job", headers=auth_headers, json={
+        "text": "some pasted text", "url": "https://example.com/jobs/1",
+    })
+    assert r.status_code == 200
+    assert r.json()["company"] == "FromText"
+
+
 PREP_JSON = json.dumps({
     "technical_questions": [{"question": "What is a hash map?", "ideal_answer": "...", "tip": "..."}],
     "behavioral_questions": [{"question": "Tell me about a conflict", "ideal_answer": "...", "tip": "..."}],
