@@ -54,5 +54,9 @@ services:
         sync: false # set to https://<your-app>.onrender.com/auth/google/callback
       - key: REDIRECT_URI_LOGIN
         sync: false # set to https://<your-app>.onrender.com/auth/google/login/callback
+      - key: SUPPORT_EMAIL
+        sync: false # shown on /privacy and /terms, used as OAuth consent screen support contact
+      - key: GOOGLE_SITE_VERIFICATION
+        sync: false # optional — only needed when submitting for Google OAuth verification
       - key: SENTRY_DSN
         sync: false # optional — leave unset to disable error tracking

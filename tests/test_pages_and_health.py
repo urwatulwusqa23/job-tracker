@@ -34,3 +34,38 @@ def test_health_endpoint_ok(client):
     body = r.json()
     assert body["status"] == "ok"
     assert body["db"] is True
+
+
+def test_privacy_page_renders(client):
+    r = client.get("/privacy")
+    assert r.status_code == 200
+    assert "Privacy Policy" in r.text
+    assert "Limited Use" in r.text  # required Google API Services disclosure
+
+
+def test_privacy_page_shows_support_email(client, monkeypatch):
+    from app.routers import pages
+
+    monkeypatch.setattr(pages.settings, "SUPPORT_EMAIL", "support@example.com")
+    r = client.get("/privacy")
+    assert "support@example.com" in r.text
+
+
+def test_terms_page_renders(client):
+    r = client.get("/terms")
+    assert r.status_code == 200
+    assert "Terms of Service" in r.text
+
+
+def test_index_page_includes_site_verification_meta_when_configured(client, monkeypatch):
+    from app.routers import pages
+
+    monkeypatch.setattr(pages.settings, "GOOGLE_SITE_VERIFICATION", "abc123token")
+    r = client.get("/")
+    assert 'name="google-site-verification"' in r.text
+    assert "abc123token" in r.text
+
+
+def test_index_page_omits_site_verification_meta_by_default(client):
+    r = client.get("/")
+    assert 'name="google-site-verification"' not in r.text

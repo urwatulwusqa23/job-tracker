@@ -55,6 +55,12 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_SECRET: str = ""
     REDIRECT_URI: str = "http://localhost:5001/auth/google/callback"
     REDIRECT_URI_LOGIN: str = "http://localhost:5001/auth/google/login/callback"
+    # Contact shown on the Privacy Policy / Terms pages and used as the OAuth consent screen support email
+    SUPPORT_EMAIL: str = ""
+    # google<code>.html verification file content, or the content= value for a
+    # <meta name="google-site-verification"> tag — either works for Search Console's
+    # URL-prefix property verification. Leave unset until Google gives you one.
+    GOOGLE_SITE_VERIFICATION: str = ""
 
     # ── Monitoring ───────────────────────────────────────────────────────
     # Optional — if unset, Sentry is simply never initialized.

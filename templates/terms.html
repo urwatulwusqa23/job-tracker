@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>{{ app_name }} — Terms of Service</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0e0d0b;--s1:#161512;--s2:#1e1c18;
+  --border:#2c2a26;--accent:#e8ff47;--text:#f0ede6;
+  --sub:#8a8680;--muted:#504e4a;
+}
+body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;line-height:1.65}
+.wrap{max-width:760px;margin:0 auto;padding:56px 24px 100px}
+.logo{font-family:'Space Grotesk',sans-serif;font-size:1.6rem;font-weight:700;color:var(--accent);letter-spacing:-.04em;margin-bottom:6px}
+.back{display:inline-block;margin-bottom:32px;color:var(--sub);text-decoration:none;font-size:.85rem}
+.back:hover{color:var(--accent)}
+h1{font-family:'Space Grotesk',sans-serif;font-size:1.9rem;margin-bottom:8px}
+.updated{color:var(--muted);font-size:.8rem;margin-bottom:40px}
+h2{font-family:'Space Grotesk',sans-serif;font-size:1.15rem;margin:36px 0 12px;color:var(--accent)}
+p,li{color:var(--sub);font-size:.92rem;margin-bottom:12px}
+ul{padding-left:22px;margin-bottom:16px}
+strong{color:var(--text)}
+a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a href="/" class="back">← Back to {{ app_name }}</a>
+  <div class="logo">Hired</div>
+  <h1>Terms of Service</h1>
+  <div class="updated">Last updated: 2026</div>
+
+  <p>These Terms govern your use of {{ app_name }} (the "app"). By creating an account or using the app, you agree to these Terms.</p>
+
+  <h2>1. Description of service</h2>
+  <p>{{ app_name }} is a personal job-application tracker with optional AI-assisted features (job detail extraction, interview preparation, skills-gap analysis, job recommendations) and optional Gmail integration for detecting application status changes.</p>
+
+  <h2>2. Your account</h2>
+  <ul>
+    <li>You're responsible for keeping your login credentials secure and for all activity under your account.</li>
+    <li>You must provide accurate information when registering.</li>
+    <li>You may only use the app for lawful purposes and must not attempt to disrupt, reverse-engineer, or abuse the service.</li>
+  </ul>
+
+  <h2>3. AI-generated content</h2>
+  <p>Features that use AI (job extraction, interview prep, skills gap analysis) generate content automatically and <strong>may be inaccurate, incomplete, or unsuitable for your situation</strong>. You should independently verify anything important before relying on it — for example, before an interview or when negotiating salary.</p>
+
+  <h2>4. Gmail integration</h2>
+  <p>Connecting Gmail is entirely optional. If you connect it, you grant the app read-only access to scan for job-related emails as described in our <a href="/privacy">Privacy Policy</a>. You can disconnect this access at any time.</p>
+
+  <h2>5. Data you provide</h2>
+  <p>You retain ownership of the application data, notes, and files (like your CV) you upload. You're responsible for making sure you have the right to upload and store that content.</p>
+
+  <h2>6. Service availability</h2>
+  <p>The app is provided "as is" without warranty of any kind. We do not guarantee uninterrupted availability, and features (particularly free-tier hosting and AI provider integrations) may be limited, changed, or discontinued.</p>
+
+  <h2>7. Limitation of liability</h2>
+  <p>To the maximum extent permitted by law, {{ app_name }} and its operator are not liable for any indirect, incidental, or consequential damages arising from your use of the app, including reliance on AI-generated content or any missed job opportunity.</p>
+
+  <h2>8. Termination</h2>
+  <p>You may stop using the app and request account deletion at any time. We may suspend or terminate accounts that violate these Terms or abuse the service.</p>
+
+  <h2>9. Changes to these Terms</h2>
+  <p>We may update these Terms as the app evolves. Continued use after changes means you accept the updated Terms.</p>
+
+  <h2>10. Contact</h2>
+  <p>Questions about these Terms? Contact: <strong>{{ support_email or "the app operator" }}</strong></p>
+</div>
+</body>
+</html>

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>{{ app_name }} — Privacy Policy</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0e0d0b;--s1:#161512;--s2:#1e1c18;
+  --border:#2c2a26;--accent:#e8ff47;--text:#f0ede6;
+  --sub:#8a8680;--muted:#504e4a;
+}
+body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;line-height:1.65}
+.wrap{max-width:760px;margin:0 auto;padding:56px 24px 100px}
+.logo{font-family:'Space Grotesk',sans-serif;font-size:1.6rem;font-weight:700;color:var(--accent);letter-spacing:-.04em;margin-bottom:6px}
+.back{display:inline-block;margin-bottom:32px;color:var(--sub);text-decoration:none;font-size:.85rem}
+.back:hover{color:var(--accent)}
+h1{font-family:'Space Grotesk',sans-serif;font-size:1.9rem;margin-bottom:8px}
+.updated{color:var(--muted);font-size:.8rem;margin-bottom:40px}
+h2{font-family:'Space Grotesk',sans-serif;font-size:1.15rem;margin:36px 0 12px;color:var(--accent)}
+p,li{color:var(--sub);font-size:.92rem;margin-bottom:12px}
+ul{padding-left:22px;margin-bottom:16px}
+strong{color:var(--text)}
+.callout{background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin:20px 0}
+.callout p{margin-bottom:0;color:var(--text)}
+a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a href="/" class="back">← Back to {{ app_name }}</a>
+  <div class="logo">Hired</div>
+  <h1>Privacy Policy</h1>
+  <div class="updated">Last updated: 2026</div>
+
+  <p>This Privacy Policy explains what information {{ app_name }} ("the app", "we") collects, why, and how it's used. {{ app_name }} is a personal job-application tracker that helps you organize applications, optionally scan Gmail for job-related emails, and use AI to extract job details and prepare for interviews.</p>
+
+  <h2>Information we collect</h2>
+  <ul>
+    <li><strong>Account information</strong> — the email address and name you register with, or that Google provides if you sign in with Google.</li>
+    <li><strong>Application data you enter</strong> — company names, roles, statuses, notes, and job descriptions you add manually or via the extraction tools.</li>
+    <li><strong>Your CV/résumé</strong> — if you upload one, we store the file and its extracted text to power AI features (interview prep, skills gap analysis, job recommendations).</li>
+    <li><strong>Gmail data (only if you connect Gmail)</strong> — if you explicitly click "Connect Gmail" and grant access, we read the subject, sender, date, and body of emails matching job-related keywords (e.g. "application", "interview", "offer") in order to detect status changes (like rejections) and extract new job applications automatically.</li>
+  </ul>
+
+  <div class="callout">
+    <p><strong>Limited Use disclosure:</strong> {{ app_name }}'s use and transfer of information received from Google APIs to any other app will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
+  </div>
+
+  <h2>How Gmail data is used</h2>
+  <ul>
+    <li>Gmail data is used <strong>only</strong> to detect job-application status updates and to auto-fill new application entries in your own tracker.</li>
+    <li>We do not use Gmail data for advertising, and we do not sell or share it with third parties.</li>
+    <li>We do not allow humans to read your Gmail data except where necessary for security, legal compliance, or with your explicit consent.</li>
+    <li>Only the minimum email content needed (matching a narrow job-related search query) is processed, and only while your Gmail connection remains active.</li>
+    <li>You can disconnect Gmail access at any time from the Inbox page in the app, or by revoking access directly at <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">Google Account permissions</a>. Disconnecting stops all further access immediately.</li>
+  </ul>
+
+  <h2>AI processing</h2>
+  <p>When you paste text, a URL, or use AI features, the relevant text (job descriptions, CV content, email content you're extracting from) is sent to our AI provider (Groq or xAI, depending on configuration) solely to generate the requested output (extracted fields, interview questions, skills analysis). This content is not used by us to train models, and is subject to the AI provider's own data handling terms.</p>
+
+  <h2>Data storage and security</h2>
+  <ul>
+    <li>Passwords are hashed with bcrypt and never stored in plain text.</li>
+    <li>Authentication uses signed JWT tokens; Google OAuth tokens are stored server-side and only used to make API calls on your behalf.</li>
+    <li>Data is stored in a database you (the app operator) control and host.</li>
+  </ul>
+
+  <h2>Your choices</h2>
+  <ul>
+    <li>You can edit or delete any application, CV, or profile data directly in the app.</li>
+    <li>You can disconnect Gmail access at any time (see above).</li>
+    <li>To request full account deletion, contact us at the address below.</li>
+  </ul>
+
+  <h2>Changes to this policy</h2>
+  <p>We may update this policy as the app changes. Material changes will be reflected by updating the "Last updated" date above.</p>
+
+  <h2>Contact</h2>
+  <p>Questions about this policy or your data? Contact: <strong>{{ support_email or "the app operator" }}</strong></p>
+</div>
+</body>
+</html>
