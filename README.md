@@ -5,7 +5,9 @@
 ![Python](https://img.shields.io/badge/python-3.11-blue)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-009688)
 
-A self-hosted job application tracker with an AI copilot (xAI Grok), Gmail auto-import, and JWT auth — FastAPI + SQLAlchemy + Alembic backend, vanilla JS frontend, one Docker command to run.
+A self-hosted job application tracker with an AI copilot (Groq / Llama 3.3 70B, free tier), Gmail auto-import, and JWT auth — FastAPI + SQLAlchemy + Alembic backend, vanilla JS frontend, one Docker command to run.
+
+**Live demo:** https://job-tracker-ai-fga4.onrender.com
 
 ## Features
 
@@ -87,7 +89,7 @@ flowchart TB
 | ORM / migrations | SQLAlchemy 2.0 + Alembic |
 | Auth | JWT (PyJWT) access + refresh tokens, bcrypt password hashing |
 | Validation | Pydantic v2 schemas |
-| AI | xAI Grok (OpenAI-compatible API) |
+| AI | Groq API — Llama 3.3 70B (free tier, OpenAI-compatible) |
 | Database | SQLite (dev/free-tier) or PostgreSQL (`DATABASE_URL` env var) |
 | PDF parsing | pdfplumber |
 | Server | Gunicorn + Uvicorn workers |
@@ -132,7 +134,8 @@ source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
 cp .env.example .env
-# Edit .env — add your XAI_API_KEY at minimum
+# Edit .env — add your XAI_API_KEY (Groq key from console.groq.com) at minimum
+# Also set AI_BASE_URL=https://api.groq.com/openai/v1 and GROK_MODEL=llama-3.3-70b-versatile
 
 alembic upgrade head              # creates the SQLite schema
 python main.py                    # or: uvicorn main:app --reload
@@ -146,7 +149,7 @@ Interactive API docs (Swagger UI) are available at `http://localhost:8080/docs` 
 
 ```bash
 cp .env.example .env
-# Edit .env and add your XAI_API_KEY
+# Edit .env — add your Groq API key and set AI_BASE_URL
 
 docker compose up -d
 ```
@@ -174,9 +177,9 @@ The test suite mocks every external API (Grok, Google OAuth, Gmail, Remotive) so
 | `ALLOWED_ORIGINS` | `*` | Comma-separated CORS origins |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `30` | JWT access token lifetime |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | `30` | JWT refresh token lifetime |
-| `XAI_API_KEY` | *(required for AI features)* | xAI/Groq API key |
-| `GROK_MODEL` | `grok-3-mini` | Model name |
-| `AI_BASE_URL` | `https://api.x.ai/v1` | OpenAI-compatible base URL (swap for Groq, etc.) |
+| `XAI_API_KEY` | *(required for AI features)* | Groq API key — get one free at [console.groq.com](https://console.groq.com) |
+| `GROK_MODEL` | `grok-3-mini` | Model name — use `llama-3.3-70b-versatile` for Groq |
+| `AI_BASE_URL` | `https://api.x.ai/v1` | OpenAI-compatible base URL — set to `https://api.groq.com/openai/v1` for Groq |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | *(optional)* | Enables Google sign-in + Gmail scan/sync |
 | `REDIRECT_URI` / `REDIRECT_URI_LOGIN` | localhost defaults | Must match the URIs registered in Google Cloud Console |
 | `SENTRY_DSN` | *(unset)* | Enables error tracking if set — no-op otherwise |
@@ -188,8 +191,20 @@ All AI and Gmail features degrade gracefully without their keys configured — y
 
 1. Push this repo to GitHub.
 2. In the [Render dashboard](https://dashboard.render.com): **New → Blueprint**, connect this repo. Render reads `render.yaml` and provisions the service.
-3. In the service's **Environment** tab, fill in the secrets marked `sync: false` in `render.yaml`: at minimum `XAI_API_KEY`. Google OAuth vars are optional.
-4. After the first deploy, Render assigns you a URL like `https://job-tracker-ai.onrender.com`. Set `FRONTEND_URL` to that value (with `https://`), and if using Google OAuth, update `REDIRECT_URI` / `REDIRECT_URI_LOGIN` to match and add them as authorized redirect URIs in Google Cloud Console.
+3. In the service's **Environment** tab, fill in the secrets marked `sync: false` in `render.yaml`:
+
+   | Key | Value |
+   |---|---|
+   | `FRONTEND_URL` | `https://<your-app>.onrender.com` |
+   | `XAI_API_KEY` | Groq key from [console.groq.com](https://console.groq.com) (starts with `gsk_`) |
+   | `AI_BASE_URL` | `https://api.groq.com/openai/v1` |
+   | `GROK_MODEL` | `llama-3.3-70b-versatile` |
+   | `GOOGLE_CLIENT_ID` | From Google Cloud Console (optional) |
+   | `GOOGLE_CLIENT_SECRET` | From Google Cloud Console (optional) |
+   | `REDIRECT_URI` | `https://<your-app>.onrender.com/auth/google/callback` |
+   | `REDIRECT_URI_LOGIN` | `https://<your-app>.onrender.com/auth/google/login/callback` |
+
+4. Add the two redirect URIs above to your OAuth client in [Google Cloud Console](https://console.cloud.google.com) → APIs & Services → Credentials.
 5. Redeploy. Your live URL is the one from step 4.
 
 **Free-tier caveats** (call these out to yourself before relying on this for real data):
@@ -212,7 +227,7 @@ Point a reverse proxy (nginx, Caddy) at port 8080, or on Railway: **New Project 
 
 ## Design notes
 
-- **Full feature parity with the original Flask app** was a deliberate choice during the FastAPI migration, including Google OAuth sign-in and persistent Gmail sync, at the cost of a larger surface area than a minimal rewrite would have.
+- **Migrated from Flask to FastAPI** — the original app used Flask sessions and raw SQLite; the current version uses FastAPI, SQLAlchemy 2.0, Alembic, and JWT auth. Feature parity was maintained across the migration.
 - **DB columns vs. JSON wire format**: SQLAlchemy models use the field names from the target schema (`company_name`, `date_applied`, `salary_expected`), but the JSON API keeps the original wire names (`company`, `applied_date`, `salary`) so the existing frontend JS needed zero changes to its data model. The translation happens in the router layer (see `WIRE_TO_MODEL` in `app/routers/applications.py`).
 - **Stateless Google OAuth**: since JWT auth has no server-side session, the OAuth `state` parameter is itself a short-lived signed JWT carrying the PKCE verifier (and, for the Gmail-connect flow, the user ID) — the callback needs no server-side session to resume the flow.
 - **Single-tenant by design**: this mirrors the original app's registration model — it's built for one person to self-host, not as a multi-tenant SaaS.
