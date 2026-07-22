@@ -6,7 +6,6 @@ def test_stats_empty_state(client, auth_headers):
     assert body["active"] == 0
     assert body["followup_needed"] == []
     assert body["recent_activity"] == []
-    assert body["last_gmail_sync"] is None
 
 
 def test_stats_counts_by_status(client, auth_headers):

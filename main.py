@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.logging import configure_logging, logger, new_request_id, request_id_ctx
-from app.routers import ai, applications, auth, cv, gmail, google_oauth, pages, stats
+from app.routers import ai, applications, auth, cv, google_oauth, pages, stats
 
 configure_logging(settings.LOG_LEVEL)
 
@@ -81,7 +81,6 @@ app.include_router(stats.router)
 app.include_router(applications.router)
 app.include_router(cv.router)
 app.include_router(ai.router)
-app.include_router(gmail.router)
 
 try:
     app.mount("/static", StaticFiles(directory="static"), name="static")

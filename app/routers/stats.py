@@ -62,6 +62,5 @@ def get_stats(user: User = Depends(get_current_user), db: Session = Depends(get_
     return StatsOut(
         **counts, total=total, active=active,
         followup_needed=followup,
-        last_gmail_sync=user.last_gmail_sync.isoformat() if user.last_gmail_sync else None,
         recent_activity=recent_activity,
     )

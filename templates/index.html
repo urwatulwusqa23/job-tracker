@@ -404,7 +404,7 @@ prio-High{color:var(--red)}
     <span>☰</span><span class="tooltip">Applications</span>
   </button>
   <button class="nav-btn" data-page="inbox">
-    <span>✉</span><span class="tooltip">Inbox</span>
+    <span>✉</span><span class="tooltip">Import</span>
   </button>
 
   <div class="sidebar-divider"></div>
@@ -445,13 +445,9 @@ prio-High{color:var(--red)}
       <div class="page-sub" id="dash-sub">Your job search at a glance</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
-      <span id="last-sync-label" style="font-size:.72rem;color:var(--muted)"></span>
-      <button class="btn btn-ghost btn-sm" id="btn-sync-dash" onclick="doGmailSync('dash')">⟳ Sync Gmail</button>
       <button class="btn btn-accent btn-sm" onclick="openAdd()">+ Add Application</button>
     </div>
   </div>
-
-  <div class="sync-banner" id="sync-banner-dash"></div>
 
   <div class="stat-row" id="stat-row"></div>
 
@@ -526,47 +522,12 @@ prio-High{color:var(--red)}
 
 <!-- ▸▸ INBOX -->
 <div class="page" id="pg-inbox">
-  <div class="page-title">Inbox</div>
-  <div class="page-sub">Sync Gmail to auto-detect rejections, or paste any email manually</div>
+  <div class="page-title">Import</div>
+  <div class="page-sub">Paste an email or job link — AI extracts the details and adds it to your tracker</div>
 
   <div class="import-grid">
 
-    <!-- Gmail Sync -->
-    <div class="import-card">
-      <div class="import-card-title">📧 Gmail Sync</div>
-
-      <!-- Primary account (from Google login) -->
-      <div style="margin-bottom:14px">
-        <div style="font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:8px">Primary Account</div>
-        <div id="gmail-primary-area"></div>
-      </div>
-
-      <!-- Secondary scan-only account -->
-      <div style="border-top:1px solid var(--border);padding-top:14px;margin-bottom:14px">
-        <div style="font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:8px">Additional Extraction Email</div>
-        <div id="gmail-scan-area"></div>
-      </div>
-
-      <!-- Sync button + results (shown when any account connected) -->
-      <div id="gmail-sync-area" style="display:none;border-top:1px solid var(--border);padding-top:14px">
-        <p class="import-desc" style="margin:0 0 12px">Sync scans your inbox, auto-extracts new applications, and silently marks rejections for companies you're already tracking.</p>
-        <div class="alert alert-err" id="inbox-sync-err"></div>
-        <button class="btn btn-accent" id="btn-sync-inbox" onclick="doGmailSync('inbox')">⟳ Sync Now</button>
-
-        <div id="sync-results" style="display:none;margin-top:14px">
-          <div id="sync-rejected-section" style="display:none;margin-bottom:16px">
-            <h3 style="color:var(--green);margin-bottom:8px">Auto-updated</h3>
-            <div id="sync-rejected-list"></div>
-          </div>
-          <div id="sync-emails-section" style="display:none">
-            <h3 style="margin-bottom:8px">Added</h3>
-            <div id="sync-email-list" style="display:flex;flex-direction:column;gap:10px"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Manual paste -->
+    <!-- Paste email / message -->
     <div class="import-card">
       <div class="import-card-title">📋 Paste Email or Message</div>
       <div class="import-desc">Copy any job-related message — confirmation email, recruiter outreach, WhatsApp — paste it below. AI extracts the details and fills the form for you.</div>
@@ -578,10 +539,10 @@ prio-High{color:var(--red)}
       </div>
     </div>
 
-    <!-- Paste job URL — no Gmail/email access needed at all -->
+    <!-- Paste job URL -->
     <div class="import-card">
       <div class="import-card-title">🔗 Paste a Job Posting Link</div>
-      <div class="import-desc">Don't want to connect Gmail? Paste the URL of a job listing (company careers page, job board, etc.) and AI will fetch and extract the details for you.</div>
+      <div class="import-desc">Paste the URL of a job listing (company careers page, job board, etc.) and AI will fetch and extract the details for you.</div>
       <input id="paste-url" type="url" placeholder="https://company.com/careers/backend-engineer" style="width:100%;padding:11px 14px;background:var(--s2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:.88rem;font-family:inherit"/>
       <div class="alert alert-err" id="paste-url-err" style="margin-top:10px"></div>
       <div style="display:flex;gap:8px;margin-top:10px">
@@ -867,15 +828,10 @@ async function tryRefreshToken() {
   } catch { return false; }
 }
 
-function gmailConnectUrl() {
-  return '/auth/google?token=' + encodeURIComponent(AUTH.access || '');
-}
-
 // ══════════════════════════════════════════════════
 //  STATE
 // ══════════════════════════════════════════════════
 let allApps = [], editId = null, currentView = 'list';
-window._syncEmails = [];
 
 const STATUS_CFG = {
   Applied:   {color:'#5bc8ff', dot:'#5bc8ff'},
@@ -898,7 +854,7 @@ document.querySelectorAll('.nav-btn[data-page]').forEach(btn => {
     document.getElementById('content').scrollTo(0,0);
     if (btn.dataset.page === 'dashboard') loadDash();
     if (btn.dataset.page === 'apps')      loadApps();
-    if (btn.dataset.page === 'inbox')     checkInboxStatus();
+    if (btn.dataset.page === 'inbox')     {};
     if (btn.dataset.page === 'prep')      fillPrepSel();
     if (btn.dataset.page === 'cv')        loadCVs();
     if (btn.dataset.page === 'profile')   loadProfile();
@@ -932,12 +888,6 @@ async function api(url, opts={}) {
 async function loadDash() {
   const [stats, apps] = await Promise.all([api('/api/stats'), api('/api/applications')]);
   allApps = apps;
-
-  // Last sync label
-  const lsLabel = document.getElementById('last-sync-label');
-  lsLabel.textContent = stats.last_gmail_sync
-    ? 'Last sync: ' + relTime(stats.last_gmail_sync)
-    : 'Gmail not synced yet';
 
   // Stats row
   const items = [
@@ -1025,7 +975,7 @@ async function loadApps() {
 function renderAppList(apps) {
   const body = document.getElementById('app-table-body');
   if (!apps.length) {
-    body.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:48px;color:var(--muted)">No applications yet — click + Add or sync your Gmail</td></tr>`;
+    body.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:48px;color:var(--muted)">No applications yet — click + Add or paste an email in the Import tab</td></tr>`;
     return;
   }
   body.innerHTML = apps.map((a, i) => {
@@ -1088,142 +1038,6 @@ function toggleView(view) {
 
 document.getElementById('srch').oninput         = loadApps;
 document.getElementById('srch-status').onchange = loadApps;
-
-// ══════════════════════════════════════════════════
-//  GMAIL SYNC (smart — auto-rejects + returns emails)
-// ══════════════════════════════════════════════════
-async function doGmailSync(source) {
-  const banner = source === 'dash'
-    ? document.getElementById('sync-banner-dash')
-    : null;
-  const inboxErr = document.getElementById('inbox-sync-err');
-  const btn = source === 'dash'
-    ? document.getElementById('btn-sync-dash')
-    : document.getElementById('btn-sync-inbox');
-
-  if (inboxErr) inboxErr.classList.remove('show');
-  if (banner) { banner.className = 'sync-banner'; banner.textContent = ''; }
-
-  setLoading(btn, true, '⟳ Syncing & extracting…');
-  try {
-    const d = await api('/api/gmail/sync', {method:'POST'});
-
-    if (d.error) {
-      if (banner) { banner.textContent = '⚠ ' + d.error; banner.className = 'sync-banner info show'; }
-      if (inboxErr) showErr(inboxErr, d.error);
-      return;
-    }
-
-    const nRej   = d.auto_rejected?.length || 0;
-    const nAdded = d.auto_added?.length || 0;
-
-    // Dashboard banner
-    if (banner) {
-      const parts = [];
-      if (nAdded) parts.push(`${nAdded} application${nAdded>1?'s':''} added`);
-      if (nRej)   parts.push(`${nRej} rejection${nRej>1?'s':''} updated`);
-      banner.textContent = parts.length ? '✓ ' + parts.join(' · ') : '✓ Sync complete — nothing new.';
-      banner.className = 'sync-banner ok show';
-    }
-
-    // Inbox results
-    if (source === 'inbox') renderSyncResults(d);
-
-    loadDash();
-    loadApps();
-
-  } catch(e) {
-    if (banner) { banner.textContent = '⚠ ' + e.message; banner.className = 'sync-banner err show'; }
-    if (inboxErr) showErr(inboxErr, e.message);
-  } finally {
-    setLoading(btn, false, source === 'dash' ? '⟳ Sync Gmail' : '⟳ Sync Now');
-  }
-}
-
-function renderSyncResults(d) {
-  const results = document.getElementById('sync-results');
-  results.style.display = 'block';
-
-  const rejSec  = document.getElementById('sync-rejected-section');
-  const rejList = document.getElementById('sync-rejected-list');
-  const emSec   = document.getElementById('sync-emails-section');
-  const emList  = document.getElementById('sync-email-list');
-
-  if (d.auto_rejected?.length) {
-    rejSec.style.display = 'block';
-    rejList.innerHTML = d.auto_rejected.map(r =>
-      `<div class="rejected-item">
-        <span style="color:var(--red)">✗</span>
-        <span><strong>${r.company}</strong> — marked Rejected</span>
-      </div>`
-    ).join('');
-  } else {
-    rejSec.style.display = 'none';
-  }
-
-  emSec.style.display = 'block';
-  if (d.auto_added?.length) {
-    emList.innerHTML = `
-      <p style="font-size:.78rem;color:var(--green);margin-bottom:.5rem">
-        ✓ ${d.auto_added.length} application${d.auto_added.length>1?'s':''} added automatically
-      </p>` +
-      d.auto_added.map(a =>
-        `<div class="rejected-item">
-          <span style="color:var(--green)">+</span>
-          <span><strong>${a.company}</strong> — ${a.role}</span>
-        </div>`
-      ).join('') +
-      (d.skipped?.length ? `<p style="font-size:.73rem;color:var(--muted);margin-top:.5rem">${d.skipped.length} already tracked (skipped)</p>` : '');
-  } else {
-    const nothing = !d.auto_rejected?.length;
-    emList.innerHTML = `<p style="font-size:.78rem;color:var(--muted)">${nothing ? 'No new job emails found.' : 'No new applications to add.'}</p>`;
-  }
-}
-
-// ══════════════════════════════════════════════════
-//  INBOX STATUS
-// ══════════════════════════════════════════════════
-async function checkInboxStatus() {
-  const d           = await api('/api/gmail/status');
-  const primaryArea = document.getElementById('gmail-primary-area');
-  const scanArea    = document.getElementById('gmail-scan-area');
-  const syncArea    = document.getElementById('gmail-sync-area');
-  if (!primaryArea) return;
-
-  if (d.primary) {
-    primaryArea.innerHTML = `
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <span class="pill pill-g">✓ ${d.primary}</span>
-        <span style="font-size:.73rem;color:var(--muted)">via Google sign-in</span>
-      </div>`;
-  } else {
-    primaryArea.innerHTML = `
-      <p class="import-desc" style="margin:0 0 10px">Sign in with Google to auto-connect your Gmail for scanning.</p>
-      <a href="/auth/google/login" class="btn btn-accent" style="text-decoration:none;display:inline-flex;align-items:center;gap:8px;width:fit-content;padding:9px 16px;font-size:.82rem">
-        <svg width="15" height="15" viewBox="0 0 18 18" fill="none"><path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615Z" fill="#4285F4"/><path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18Z" fill="#34A853"/><path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332Z" fill="#FBBC05"/><path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58Z" fill="#EA4335"/></svg>
-        Sign in with Google
-      </a>`;
-  }
-
-  if (d.scan) {
-    scanArea.innerHTML = `
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <span class="pill pill-g">✓ ${d.scan}</span>
-        <button class="btn btn-ghost btn-xs" onclick="doGmailDisconnect('google_scan')">Remove</button>
-      </div>`;
-  } else {
-    scanArea.innerHTML = `
-      <p class="import-desc" style="margin:0 0 10px;font-size:.78rem">Add a second Gmail (e.g. personal vs work) to also scan for job emails.</p>
-      <a href="${gmailConnectUrl()}" class="btn btn-ghost btn-sm" style="text-decoration:none;display:inline-flex;width:fit-content">+ Add another Gmail</a>`;
-  }
-
-  syncArea.style.display = (d.primary || d.scan) ? 'block' : 'none';
-}
-
-async function doGmailDisconnect(provider) {
-  await api('/api/gmail/disconnect', {method:'POST', body:JSON.stringify({provider: provider || 'google_scan'})});
-  checkInboxStatus();
-}
 
 // ══════════════════════════════════════════════════
 //  MODAL — ADD / EDIT

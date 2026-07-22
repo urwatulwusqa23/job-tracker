@@ -27,5 +27,4 @@ class StatsOut(BaseModel):
     total: int
     active: int
     followup_needed: list[FollowupItem]
-    last_gmail_sync: str | None
     recent_activity: list[ActivityItem]
