@@ -5,124 +5,120 @@
 ![Python](https://img.shields.io/badge/python-3.11-blue)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-009688)
 
-A self-hosted job application tracker with an AI copilot (Groq / Llama 3.3 70B, free tier), Gmail auto-import, and JWT auth — FastAPI + SQLAlchemy + Alembic backend, vanilla JS frontend, one Docker command to run.
+A self-hosted job application tracker with an AI copilot. Track every application you send, let AI analyse your CV against the roles you want, generate interview prep, and surface live job listings — all in one place.
 
 **Live demo:** https://job-tracker-ai-fga4.onrender.com
 
+---
+
 ## Features
 
-- **Kanban board** — track applications across Applied / Screening / Interview / Offer / Rejected / Withdrawn
-- **AI import** — paste any email or message and Grok extracts company, role, salary, location, and job URL automatically
-- **Gmail integration** — sign in with Google (auto-connects Gmail), scan your inbox for job emails, or run a smart sync that auto-adds new applications and auto-marks rejections
-- **Interview prep** — generates technical + behavioural questions, salary negotiation advice, company research points, and personalised tips, based on your CV and the job description
-- **Skills gap analysis** — compares your CV against jobs you've applied for and returns skill gaps, ranked courses, projects to build, and market insights
-- **Job recommendations** — pulls live remote listings from Remotive matched to keywords derived from your CV
-- **CV manager** — upload multiple PDF CVs, set one as active; every AI feature uses the active CV automatically
-- **JWT auth** — bcrypt-hashed passwords, short-lived access tokens + long-lived refresh tokens, single-tenant registration (locked after the first account)
+- **Application tracking** — list view and Kanban board across Applied / Screening / Interview / Offer / Rejected / Withdrawn. Inline status dropdown so you never open a modal just to move a card.
+- **AI import** — paste any recruitment email or job post and the AI extracts company, role, salary, location, and job URL automatically.
+- **Interview prep** — generates technical and behavioural questions, salary negotiation advice, company research points, and personalised tips based on your CV and the job description.
+- **Skills gap analysis** — compares your CV against every job you've applied for and returns ranked skill gaps, suggested courses, and project ideas.
+- **Job recommendations** — fetches live remote listings from Remotive matched to keywords derived from your CV.
+- **CV manager** — upload multiple PDF CVs, set one as active; all AI features use the active CV automatically.
+- **Google sign-in** — one-click login via Google (email + profile only — no inbox access). Email/password login also supported.
+- **Onboarding** — new accounts see a guided empty state with quick actions to add an application, import from email, or upload a CV.
+- **Keyboard shortcut** — press `N` from anywhere to open the Add Application modal.
+- **CSV export** — download all your applications as a spreadsheet in one click.
+- **JWT auth** — bcrypt-hashed passwords, 30-minute access tokens, 30-day refresh tokens, single-tenant (registration closes after the first account).
 
-## Architecture
-
-```mermaid
-flowchart TB
-    subgraph Client["Browser"]
-        FE["Vanilla JS SPA<br/>(templates/index.html, login.html)"]
-    end
-
-    subgraph API["FastAPI app (main.py)"]
-        MW["Middleware<br/>CORS · GZip · request logging"]
-        AuthR["auth / me<br/>routers"]
-        GoogleR["google_oauth<br/>router"]
-        AppR["applications / stats / cv<br/>routers"]
-        AiR["ai router"]
-        GmailR["gmail router"]
-        Health["/health"]
-    end
-
-    subgraph Core["app/core"]
-        Sec["security.py<br/>JWT + bcrypt"]
-        DB["database.py<br/>SQLAlchemy session"]
-        Cfg["config.py<br/>pydantic-settings"]
-    end
-
-    subgraph Services["app/services"]
-        AiSvc["ai_service.py"]
-        GmailSvc["gmail_service.py"]
-        CvSvc["cv_service.py"]
-        JobSvc["job_board_service.py"]
-    end
-
-    subgraph Data["Persistence"]
-        ORM["SQLAlchemy models<br/>(app/models)"]
-        Migrations["Alembic migrations"]
-        SQLite[("SQLite (dev) /<br/>Postgres (prod)")]
-    end
-
-    subgraph External["External APIs"]
-        Grok["xAI Grok API"]
-        Google["Google OAuth + Gmail API"]
-        Remotive["Remotive Jobs API"]
-    end
-
-    FE -- "fetch() + Bearer JWT" --> MW
-    MW --> AuthR & GoogleR & AppR & AiR & GmailR & Health
-    AuthR --> Sec
-    GoogleR --> Sec
-    AppR --> DB
-    AuthR --> DB
-    Health --> DB
-    AiR --> AiSvc --> Grok
-    GmailR --> GmailSvc --> Google
-    GoogleR --> GmailSvc
-    AppR --> CvSvc
-    AiR --> JobSvc --> Remotive
-    DB --> ORM --> SQLite
-    Migrations --> SQLite
-```
-
-**Request flow for a typical authenticated call:** the SPA sends a `Bearer` JWT → FastAPI's dependency injection resolves `get_current_user` (verifies the JWT, loads the `User` row) → the router calls a service function for any external API work (Grok, Gmail, Remotive) → SQLAlchemy commits the result → a translation layer in the router maps DB column names back to the wire JSON shape the frontend expects (see [Design notes](#design-notes)).
+---
 
 ## Tech stack
 
 | Layer | Technology |
 |---|---|
-| Backend framework | FastAPI (async-capable, OpenAPI docs at `/docs`) |
+| Backend | FastAPI (Python 3.11) |
 | ORM / migrations | SQLAlchemy 2.0 + Alembic |
-| Auth | JWT (PyJWT) access + refresh tokens, bcrypt password hashing |
-| Validation | Pydantic v2 schemas |
-| AI | Groq API — Llama 3.3 70B (free tier, OpenAI-compatible) |
-| Database | SQLite (dev/free-tier) or PostgreSQL (`DATABASE_URL` env var) |
+| Auth | PyJWT access + refresh tokens, bcrypt |
+| Validation | Pydantic v2 |
+| AI | Groq API — Llama 3.3 70B (free tier, OpenAI-compatible endpoint) |
+| Database | SQLite (dev / free-tier) or PostgreSQL (`DATABASE_URL` env var) |
 | PDF parsing | pdfplumber |
 | Server | Gunicorn + Uvicorn workers |
-| Frontend | Vanilla JS + CSS (no build step) |
-| Testing | pytest + pytest-cov (93%+ coverage) |
-| CI | GitHub Actions (lint, test, Docker build) |
-| Monitoring | JSON structured logs, `/health` endpoint, optional Sentry |
+| Frontend | Vanilla JS + CSS (no build step, no dependencies) |
+| Testing | pytest + pytest-cov (93%+ coverage, 120 tests) |
+| CI | GitHub Actions (ruff lint → alembic check → pytest → Docker build) |
 | Container | Docker / Docker Compose |
+
+---
+
+## Architecture
+
+```mermaid
+flowchart TB
+    subgraph Browser
+        FE["Vanilla JS SPA\n(templates/index.html)"]
+    end
+
+    subgraph API["FastAPI — main.py"]
+        Auth["auth router\n/api/auth/*  /api/me"]
+        Google["google_oauth router\n/auth/google/login"]
+        Apps["applications / stats / cv\nrouters"]
+        Ai["ai router"]
+        Health["/health"]
+    end
+
+    subgraph Services
+        AiSvc["ai_service.py"]
+        CvSvc["cv_service.py"]
+        JobSvc["job_board_service.py"]
+        OAuthSvc["gmail_service.py\n(OAuth helpers only)"]
+    end
+
+    subgraph Data
+        ORM["SQLAlchemy models"]
+        SQLite[("SQLite / PostgreSQL")]
+    end
+
+    subgraph External
+        Groq["Groq API\nLlama 3.3 70B"]
+        GoogleOAuth["Google OAuth 2.0\n(openid + profile + email)"]
+        Remotive["Remotive Jobs API"]
+    end
+
+    FE -- "Bearer JWT" --> Auth & Google & Apps & Ai & Health
+    Auth --> ORM --> SQLite
+    Google --> OAuthSvc --> GoogleOAuth
+    Apps --> ORM
+    Apps --> CvSvc
+    Ai --> AiSvc --> Groq
+    Ai --> JobSvc --> Remotive
+```
+
+**Request flow:** SPA sends `Bearer <JWT>` → FastAPI's `get_current_user` dependency verifies the token and loads the user → the router delegates external work to a service → SQLAlchemy commits → the router maps DB column names to the JSON wire format the frontend expects (see `WIRE_TO_MODEL` in `app/routers/applications.py`).
+
+---
 
 ## Project structure
 
 ```
 job-tracker/
-├── main.py                  # FastAPI app assembly, middleware, /health
+├── main.py                        # App assembly, middleware, /health
 ├── app/
-│   ├── core/                # config (pydantic-settings), database session, JWT/bcrypt security, logging
-│   ├── models/               # SQLAlchemy models (User, Application, CV, InterviewPrep, OAuthToken, ActivityLog)
-│   ├── schemas/              # Pydantic request/response schemas
-│   ├── routers/               # FastAPI route handlers (one file per feature area)
-│   └── services/              # Business logic / external API clients (AI, Gmail, CV parsing, job board)
-├── alembic/                  # Migration environment + versioned migrations
-├── tests/                    # pytest suite (unit + integration, mocks all external APIs)
-├── templates/                # index.html / login.html — the vanilla JS frontend
-├── .github/workflows/ci.yml  # Lint + test + coverage gate + Docker build
-├── Dockerfile / docker-entrypoint.sh   # Runs Alembic migrations, then Gunicorn+Uvicorn
+│   ├── core/                      # Config (pydantic-settings), DB session, JWT/bcrypt, logging
+│   ├── models/                    # SQLAlchemy models: User, Application, CV, InterviewPrep, ActivityLog
+│   ├── schemas/                   # Pydantic request/response schemas
+│   ├── routers/                   # Route handlers — one file per feature area
+│   └── services/                  # External API clients: AI, CV parsing, job board, OAuth helpers
+├── alembic/                       # Migration environment + versioned migrations
+├── tests/                         # 120 pytest tests (mocks all external APIs, in-memory SQLite)
+├── templates/                     # index.html + login.html — the full frontend
+├── .github/workflows/ci.yml       # Lint → migrations check → test + coverage gate → Docker build
+├── Dockerfile / docker-entrypoint.sh
 ├── docker-compose.yml
-├── render.yaml                # Render.com Blueprint (free tier)
+├── render.yaml                    # Render.com Blueprint
 └── requirements.txt / requirements-dev.txt
 ```
 
+---
+
 ## Quick start (local)
 
-**Prerequisites:** Python 3.11+, pip
+**Prerequisites:** Python 3.11+
 
 ```bash
 git clone https://github.com/urwatulwusqa23/job-tracker.git
@@ -134,132 +130,135 @@ source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
 cp .env.example .env
-# Edit .env — add your XAI_API_KEY (Groq key from console.groq.com) at minimum
-# Also set AI_BASE_URL=https://api.groq.com/openai/v1 and GROK_MODEL=llama-3.3-70b-versatile
+# Open .env and set at minimum:
+#   XAI_API_KEY=gsk_...          (Groq key from console.groq.com)
+#   AI_BASE_URL=https://api.groq.com/openai/v1
+#   GROK_MODEL=llama-3.3-70b-versatile
 
-alembic upgrade head              # creates the SQLite schema
-python main.py                    # or: uvicorn main:app --reload
+alembic upgrade head             # creates the SQLite schema
+python main.py                   # or: uvicorn main:app --reload
 ```
 
-Open `http://localhost:8080`. The first account you register becomes the only account (single-tenant) — registration closes automatically after that.
+Open `http://localhost:8080`. The first account you create becomes the only account — registration closes automatically after that.
 
-Interactive API docs (Swagger UI) are available at `http://localhost:8080/docs` in any environment.
+Swagger UI is available at `http://localhost:8080/docs`.
+
+---
 
 ## Quick start (Docker)
 
 ```bash
-cp .env.example .env
-# Edit .env — add your Groq API key and set AI_BASE_URL
-
+cp .env.example .env             # add your Groq key (see above)
 docker compose up -d
 ```
 
-Open `http://localhost:8080`. The container runs `alembic upgrade head` automatically on startup before serving traffic (see `docker-entrypoint.sh`). Data persists in the `job_data` Docker volume.
+Open `http://localhost:8080`. The container runs `alembic upgrade head` automatically before serving traffic. Data persists in the `job_data` Docker volume.
+
+---
 
 ## Running tests
 
 ```bash
 pip install -r requirements-dev.txt
-pytest                    # runs the full suite with coverage, fails if coverage < 80%
-ruff check .              # lint
+pytest              # full suite with coverage report (fails if coverage < 80%)
+ruff check .        # lint
 ```
 
-The test suite mocks every external API (Grok, Google OAuth, Gmail, Remotive) so it runs offline and deterministically — no real API keys or network access needed. It uses an isolated in-memory SQLite database per test, so it never touches your local `jobtracker.db`.
+The suite mocks every external API (Groq, Google OAuth, Remotive) so it runs fully offline without any API keys. Each test gets an isolated in-memory SQLite database.
+
+---
 
 ## Environment variables
 
 | Variable | Default | Description |
 |---|---|---|
-| `SECRET_KEY` | *(auto-generated if unset)* | Signs JWTs — set a real value in production |
-| `DB_PATH` | `jobtracker.db` | SQLite file path (ignored if `DATABASE_URL` is set) |
-| `DATABASE_URL` | *(unset)* | Overrides `DB_PATH` — set this to use PostgreSQL instead of SQLite |
-| `FRONTEND_URL` | `http://localhost:8080` | Used to build OAuth-login redirect URLs |
+| `SECRET_KEY` | *(auto-generated)* | Signs JWTs — set a fixed value in production |
+| `DB_PATH` | `jobtracker.db` | SQLite file path; ignored when `DATABASE_URL` is set |
+| `DATABASE_URL` | *(unset)* | PostgreSQL connection string — overrides `DB_PATH` |
+| `FRONTEND_URL` | `http://localhost:8080` | Used to build OAuth redirect URLs |
 | `ALLOWED_ORIGINS` | `*` | Comma-separated CORS origins |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `30` | JWT access token lifetime |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | `30` | JWT refresh token lifetime |
-| `XAI_API_KEY` | *(required for AI features)* | Groq API key — get one free at [console.groq.com](https://console.groq.com) |
-| `GROK_MODEL` | `grok-3-mini` | Model name — use `llama-3.3-70b-versatile` for Groq |
-| `AI_BASE_URL` | `https://api.x.ai/v1` | OpenAI-compatible base URL — set to `https://api.groq.com/openai/v1` for Groq |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | *(optional)* | Enables Google sign-in + Gmail scan/sync |
-| `REDIRECT_URI` / `REDIRECT_URI_LOGIN` | localhost defaults | Must match the URIs registered in Google Cloud Console |
-| `SENTRY_DSN` | *(unset)* | Enables error tracking if set — no-op otherwise |
+| `XAI_API_KEY` | *(required for AI)* | Groq API key — free at [console.groq.com](https://console.groq.com) |
+| `AI_BASE_URL` | `https://api.x.ai/v1` | Set to `https://api.groq.com/openai/v1` for Groq |
+| `GROK_MODEL` | `grok-3-mini` | Set to `llama-3.3-70b-versatile` for Groq |
+| `GOOGLE_CLIENT_ID` | *(optional)* | Enables Google sign-in |
+| `GOOGLE_CLIENT_SECRET` | *(optional)* | Enables Google sign-in |
+| `REDIRECT_URI_LOGIN` | localhost default | Must match URI registered in Google Cloud Console |
+| `SENTRY_DSN` | *(unset)* | Enables Sentry error tracking if set |
 | `LOG_LEVEL` | `INFO` | Python logging level |
 
-All AI and Gmail features degrade gracefully without their keys configured — you can still manually track applications with just `SECRET_KEY`.
+All AI features degrade gracefully when `XAI_API_KEY` is absent — you can still manually track applications with only `SECRET_KEY` set.
 
-## Deployment (Render, free tier)
+---
+
+## Deploy to Render (free tier)
 
 1. Push this repo to GitHub.
-2. In the [Render dashboard](https://dashboard.render.com): **New → Blueprint**, connect this repo. Render reads `render.yaml` and provisions the service.
-3. In the service's **Environment** tab, fill in the secrets marked `sync: false` in `render.yaml`:
+2. In the [Render dashboard](https://dashboard.render.com): **New → Blueprint**, connect your repo. Render reads `render.yaml`.
+3. In the service's **Environment** tab, add these secrets:
 
    | Key | Value |
    |---|---|
+   | `SECRET_KEY` | Any long random string |
    | `FRONTEND_URL` | `https://<your-app>.onrender.com` |
-   | `XAI_API_KEY` | Groq key from [console.groq.com](https://console.groq.com) (starts with `gsk_`) |
+   | `XAI_API_KEY` | Groq key from [console.groq.com](https://console.groq.com) |
    | `AI_BASE_URL` | `https://api.groq.com/openai/v1` |
    | `GROK_MODEL` | `llama-3.3-70b-versatile` |
-   | `GOOGLE_CLIENT_ID` | From Google Cloud Console (optional) |
-   | `GOOGLE_CLIENT_SECRET` | From Google Cloud Console (optional) |
-   | `REDIRECT_URI` | `https://<your-app>.onrender.com/auth/google/callback` |
-   | `REDIRECT_URI_LOGIN` | `https://<your-app>.onrender.com/auth/google/login/callback` |
+   | `GOOGLE_CLIENT_ID` | From Google Cloud Console *(optional)* |
+   | `GOOGLE_CLIENT_SECRET` | From Google Cloud Console *(optional)* |
+   | `REDIRECT_URI_LOGIN` | `https://<your-app>.onrender.com/auth/google/login/callback` *(optional)* |
 
-4. Add the two redirect URIs above to your OAuth client in [Google Cloud Console](https://console.cloud.google.com) → APIs & Services → Credentials.
-5. Redeploy. Your live URL is the one from step 4.
+4. If using Google sign-in, add `REDIRECT_URI_LOGIN` above to your OAuth client in [Google Cloud Console](https://console.cloud.google.com) → APIs & Services → Credentials → Authorised redirect URIs.
+5. Redeploy.
 
-**Free-tier caveats** (call these out to yourself before relying on this for real data):
-- The free web service spins down after ~15 min of inactivity; the next request has a cold start of 30–60s.
-- The free plan has no persistent disk, so the SQLite file resets on every deploy/restart. For real persistence, either upgrade to a paid disk or point `DATABASE_URL` at a managed Postgres instance — `psycopg2` is already bundled, so no code changes are needed.
+**Free-tier caveats:**
+- The service spins down after ~15 min of inactivity; the first request after that has a cold start of 30–60 s.
+- No persistent disk on the free plan — the SQLite file resets on every deploy. For real persistence, point `DATABASE_URL` at a managed Postgres instance (no code changes needed; `psycopg2` is bundled).
 
-### Any other Docker host / VPS / Railway
+### Other hosts (VPS / Railway / Fly.io)
 
 ```bash
 docker compose up -d
 ```
 
-Point a reverse proxy (nginx, Caddy) at port 8080, or on Railway: **New Project → Deploy from GitHub repo**, Railway detects the `Dockerfile` automatically — set the same environment variables as above in its dashboard.
+Point a reverse proxy (nginx, Caddy) at port 8080. On Railway or Fly.io, connect the GitHub repo and set the same environment variables in the dashboard — both platforms detect the `Dockerfile` automatically.
 
-## Monitoring
+---
 
-- `GET /health` — checks the app is up and the database is reachable (used by Render's health check and any uptime monitor).
-- Structured JSON logs to stdout for every request (method, path, status, duration, request ID) and full tracebacks on unhandled exceptions — pipe these into your platform's log viewer (Render/Railway both capture stdout automatically) or a log aggregator.
-- Set `SENTRY_DSN` to get exception tracking and basic performance traces in [Sentry](https://sentry.io) — omit it and Sentry is never initialized.
+## API reference
 
-## Design notes
-
-- **Migrated from Flask to FastAPI** — the original app used Flask sessions and raw SQLite; the current version uses FastAPI, SQLAlchemy 2.0, Alembic, and JWT auth. Feature parity was maintained across the migration.
-- **DB columns vs. JSON wire format**: SQLAlchemy models use the field names from the target schema (`company_name`, `date_applied`, `salary_expected`), but the JSON API keeps the original wire names (`company`, `applied_date`, `salary`) so the existing frontend JS needed zero changes to its data model. The translation happens in the router layer (see `WIRE_TO_MODEL` in `app/routers/applications.py`).
-- **Stateless Google OAuth**: since JWT auth has no server-side session, the OAuth `state` parameter is itself a short-lived signed JWT carrying the PKCE verifier (and, for the Gmail-connect flow, the user ID) — the callback needs no server-side session to resume the flow.
-- **Single-tenant by design**: this mirrors the original app's registration model — it's built for one person to self-host, not as a multi-tenant SaaS.
-
-## API endpoints
-
-All endpoints except `/`, `/login`, `/register`, `/health`, and the `/api/auth/*` + `/auth/google/*` OAuth routes require an `Authorization: Bearer <access_token>` header.
+All routes except `/`, `/login`, `/register`, `/health`, and `/api/auth/*` + `/auth/google/*` require `Authorization: Bearer <access_token>`.
 
 | Method | Path | Description |
 |---|---|---|
 | `POST` | `/api/auth/register` | Create the (single) account, returns JWT pair |
-| `POST` | `/api/auth/login` | Log in, returns JWT pair |
-| `POST` | `/api/auth/refresh` | Exchange a refresh token for a new pair |
-| `GET`/`PUT` | `/api/me` | Get/update profile |
+| `POST` | `/api/auth/login` | Email/password login, returns JWT pair |
+| `POST` | `/api/auth/refresh` | Exchange refresh token for a new pair |
+| `GET` / `PUT` | `/api/me` | Get / update profile |
 | `PUT` | `/api/me/password` | Change password |
-| `GET` | `/auth/google/login` | Start Google sign-in |
-| `GET` | `/auth/google` | Connect a Gmail account for scanning |
-| `GET` | `/api/gmail/status` | Which Gmail accounts are connected |
-| `POST` | `/api/gmail/disconnect` | Disconnect a connected Gmail account |
+| `GET` | `/auth/google/login` | Start Google OAuth login |
 | `GET` | `/api/stats` | Dashboard stats, follow-ups, recent activity |
-| `GET`/`POST` | `/api/applications` | List / create applications |
-| `PUT`/`DELETE` | `/api/applications/{id}` | Update / delete an application |
-| `GET`/`POST` | `/api/cv` | List CVs / upload a CV (PDF) |
+| `GET` / `POST` | `/api/applications` | List / create applications |
+| `PUT` / `DELETE` | `/api/applications/{id}` | Update / delete an application |
+| `GET` / `POST` | `/api/cv` | List CVs / upload a PDF |
 | `POST` | `/api/cv/{id}/activate` | Set a CV as active |
 | `GET` | `/api/cv/{id}/download` | Download a CV |
 | `GET` | `/api/cv/active_text` | Extracted text from the active CV |
-| `POST` | `/api/extract_job` | AI-extract job details from pasted text |
-| `POST` | `/api/gmail_scan` | One-off scan of Gmail inbox for job emails |
-| `POST` | `/api/gmail/sync` | Auto-add new applications / auto-mark rejections from Gmail |
-| `GET`/`POST` | `/api/interview_prep/{id}` | Get / generate interview prep for an application |
+| `POST` | `/api/extract_job` | AI-extract job details from pasted text or URL |
+| `GET` / `POST` | `/api/interview_prep/{id}` | Get / generate interview prep for an application |
 | `POST` | `/api/skills_gap` | Analyse CV against applied jobs |
 | `POST` | `/api/job_recommendations` | Fetch live job listings matched to CV |
-| `GET` | `/health` | Liveness + DB connectivity check |
+| `GET` | `/health` | Liveness + DB check |
 
-Full interactive documentation (request/response schemas) is auto-generated at `/docs` (Swagger UI) and `/redoc`.
+Full interactive docs (request/response schemas, try-it-out) at `/docs` (Swagger UI) and `/redoc`.
+
+---
+
+## Design notes
+
+- **Google OAuth scope** — login requests only `openid`, `email`, and `profile`. No inbox or Gmail access is requested at any point.
+- **Stateless OAuth** — the OAuth `state` parameter is itself a short-lived signed JWT carrying the PKCE verifier, so the callback needs no server-side session to resume the flow.
+- **Single-tenant by design** — built for one person to self-host. Registration is permanently disabled after the first account is created.
+- **Wire format translation** — SQLAlchemy models use canonical column names (`company_name`, `date_applied`, `salary_expected`). The JSON API keeps shorter names (`company`, `applied_date`, `salary`) so the frontend never needed updating. Translation lives in `WIRE_TO_MODEL` in `app/routers/applications.py`.
+- **XSS protection** — all user content in the frontend is rendered via a `h()` helper that sets `textContent` (DOM-safe) rather than injecting raw HTML strings.
