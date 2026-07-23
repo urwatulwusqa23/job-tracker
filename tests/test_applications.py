@@ -110,3 +110,32 @@ def test_new_application_auto_links_active_cv(client, auth_headers):
     apps = client.get("/api/applications", headers=auth_headers).json()
     app = next(a for a in apps if a["id"] == app_id)
     assert app["cv_filename"] == "resume.pdf"
+
+
+def test_create_application_empty_company_422(client, auth_headers):
+    r = client.post("/api/applications", headers=auth_headers, json={"company": "   ", "role": "Engineer"})
+    assert r.status_code == 422
+
+
+def test_create_application_empty_role_422(client, auth_headers):
+    r = client.post("/api/applications", headers=auth_headers, json={"company": "Acme", "role": ""})
+    assert r.status_code == 422
+
+
+def test_create_application_invalid_status_422(client, auth_headers):
+    r = client.post("/api/applications", headers=auth_headers, json={"company": "Acme", "role": "Eng", "status": "Pending"})
+    assert r.status_code == 422
+
+
+def test_create_duplicate_application_409(client, auth_headers):
+    payload = {"company": "Acme", "role": "Engineer"}
+    r1 = client.post("/api/applications", headers=auth_headers, json=payload)
+    assert r1.status_code == 201
+    r2 = client.post("/api/applications", headers=auth_headers, json=payload)
+    assert r2.status_code == 409
+
+
+def test_create_duplicate_application_case_insensitive_409(client, auth_headers):
+    client.post("/api/applications", headers=auth_headers, json={"company": "Acme Corp", "role": "Engineer"})
+    r = client.post("/api/applications", headers=auth_headers, json={"company": "acme corp", "role": "ENGINEER"})
+    assert r.status_code == 409

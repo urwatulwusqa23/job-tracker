@@ -57,6 +57,23 @@ def list_applications(user: User = Depends(get_current_user), db: Session = Depe
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_application(payload: ApplicationCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     data = _to_model_kwargs(payload.model_dump())
+
+    # Duplicate check (same company + role, case-insensitive)
+    existing = (
+        db.query(Application)
+        .filter(
+            Application.user_id == user.id,
+            Application.company_name.ilike(payload.company.strip()),
+            Application.role.ilike(payload.role.strip()),
+        )
+        .first()
+    )
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"You already have an application for {payload.role} at {payload.company}",
+        )
+
     if not data.get("cv_id"):
         active_cv = db.query(CV).filter_by(user_id=user.id, is_active=True).first()
         data["cv_id"] = active_cv.id if active_cv else None

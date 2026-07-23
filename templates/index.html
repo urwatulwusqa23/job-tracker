@@ -339,6 +339,11 @@ textarea{resize:vertical;min-height:88px;line-height:1.55}
 .b-Offer    {background:rgba(61,220,132,.12);color:var(--green)}
 .b-Rejected {background:rgba(255,92,92,.12);color:var(--red)}
 .b-Withdrawn{background:rgba(138,134,128,.12);color:var(--muted)}
+@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
+.skel{border-radius:6px;background:linear-gradient(90deg,var(--s2) 25%,var(--s1) 50%,var(--s2) 75%);background-size:800px 100%;animation:shimmer 1.4s infinite}
+.skel-text{height:14px;margin:4px 0}
+.skel-badge{height:22px;width:72px;border-radius:12px}
+.status-inline{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:3px 6px;border-radius:4px;border:none;cursor:pointer;outline:none;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23888'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 5px center;padding-right:18px}
 .pill{display:inline-block;padding:4px 10px;border-radius:20px;font-size:.74rem;background:var(--s2);color:var(--sub);border:1px solid var(--border)}
 .pill-g{background:rgba(61,220,132,.12);color:var(--green);border-color:rgba(61,220,132,.2)}
 .pill-a{background:rgba(232,255,71,.12);color:var(--accent);border-color:rgba(232,255,71,.2)}
@@ -400,8 +405,9 @@ prio-High{color:var(--red)}
   <button class="nav-btn active" data-page="dashboard">
     <span>⬡</span><span class="tooltip">Dashboard</span>
   </button>
-  <button class="nav-btn" data-page="apps">
+  <button class="nav-btn" data-page="apps" style="position:relative">
     <span>☰</span><span class="tooltip">Applications</span>
+    <span id="nav-app-count" style="display:none;position:absolute;top:4px;right:4px;background:var(--accent);color:#0e0d0b;border-radius:10px;font-size:.55rem;font-weight:800;padding:1px 5px;min-width:14px;text-align:center;line-height:14px"></span>
   </button>
   <button class="nav-btn" data-page="inbox">
     <span>✉</span><span class="tooltip">Import</span>
@@ -449,6 +455,34 @@ prio-High{color:var(--red)}
     </div>
   </div>
 
+  <!-- Onboarding empty state (hidden once apps exist) -->
+  <div id="dash-onboard" style="display:none;text-align:center;padding:60px 20px">
+    <div style="font-size:3rem;margin-bottom:16px">🎯</div>
+    <div style="font-size:1.3rem;font-weight:700;margin-bottom:8px">Welcome to Hired</div>
+    <div style="color:var(--sub);font-size:.88rem;margin-bottom:32px;max-width:420px;margin-left:auto;margin-right:auto">Track every job you apply for — and let AI help you prepare, improve, and find more.</div>
+    <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap">
+      <div style="background:var(--s1);border:1px solid var(--border);border-radius:14px;padding:24px;width:200px;text-align:left">
+        <div style="font-size:1.5rem;margin-bottom:10px">➕</div>
+        <div style="font-weight:700;margin-bottom:4px">Add an application</div>
+        <div style="font-size:.76rem;color:var(--sub);margin-bottom:14px">Log a job you've applied for</div>
+        <button class="btn btn-accent btn-sm" onclick="openAdd()">+ Add Now</button>
+      </div>
+      <div style="background:var(--s1);border:1px solid var(--border);border-radius:14px;padding:24px;width:200px;text-align:left">
+        <div style="font-size:1.5rem;margin-bottom:10px">📋</div>
+        <div style="font-weight:700;margin-bottom:4px">Import from email</div>
+        <div style="font-size:.76rem;color:var(--sub);margin-bottom:14px">Paste an email — AI extracts everything</div>
+        <button class="btn btn-ghost btn-sm" onclick="document.querySelector('[data-page=inbox]').click()">Go to Import</button>
+      </div>
+      <div style="background:var(--s1);border:1px solid var(--border);border-radius:14px;padding:24px;width:200px;text-align:left">
+        <div style="font-size:1.5rem;margin-bottom:10px">📄</div>
+        <div style="font-weight:700;margin-bottom:4px">Upload your CV</div>
+        <div style="font-size:.76rem;color:var(--sub);margin-bottom:14px">Powers interview prep & skills gap</div>
+        <button class="btn btn-ghost btn-sm" onclick="document.querySelector('[data-page=cv]').click()">Go to CV</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="dash-main-content">
   <div class="stat-row" id="stat-row"></div>
 
   <div class="funnel" id="funnel-card">
@@ -469,6 +503,7 @@ prio-High{color:var(--red)}
       </div>
     </div>
   </div>
+  </div><!-- /dash-main-content -->
 </div>
 
 <!-- ▸▸ APPLICATIONS -->
@@ -490,6 +525,7 @@ prio-High{color:var(--red)}
         <button class="view-btn active" data-view="list" onclick="toggleView('list')">List</button>
         <button class="view-btn" data-view="board" onclick="toggleView('board')">Board</button>
       </div>
+      <button class="btn btn-ghost btn-sm" onclick="exportCSV()" title="Export to CSV">↓ Export</button>
       <button class="btn btn-accent btn-sm" onclick="openAdd()">+ Add</button>
     </div>
   </div>
@@ -889,6 +925,20 @@ async function loadDash() {
   const [stats, apps] = await Promise.all([api('/api/stats'), api('/api/applications')]);
   allApps = apps;
 
+  // Onboarding empty state
+  const onboard = document.getElementById('dash-onboard');
+  const dashContent = document.getElementById('dash-main-content');
+  if (onboard && dashContent) {
+    const isEmpty = !stats.total;
+    onboard.style.display      = isEmpty ? 'block' : 'none';
+    dashContent.style.display  = isEmpty ? 'none'  : 'block';
+    if (isEmpty) return;
+  }
+
+  // Nav badge
+  const navBadge = document.getElementById('nav-app-count');
+  if (navBadge) { navBadge.textContent = stats.total||0; navBadge.style.display = stats.total ? 'block' : 'none'; }
+
   // Stats row
   const items = [
     {k:'total',     l:'Total',      cls:'accent'},
@@ -959,6 +1009,17 @@ async function loadDash() {
 //  APPLICATIONS — list + board
 // ══════════════════════════════════════════════════
 async function loadApps() {
+  const body = document.getElementById('app-table-body');
+  if (body && !allApps.length) {
+    body.innerHTML = Array(5).fill(0).map(()=>`
+      <tr class="skeleton-row">
+        <td><div class="skel skel-text" style="width:120px"></div></td>
+        <td><div class="skel skel-text" style="width:160px"></div></td>
+        <td><div class="skel skel-badge"></div></td>
+        <td><div class="skel skel-text" style="width:80px"></div></td>
+        <td></td>
+      </tr>`).join('');
+  }
   const apps = await api('/api/applications');
   allApps = apps;
   const q = document.getElementById('srch').value.toLowerCase();
@@ -981,14 +1042,20 @@ function renderAppList(apps) {
   body.innerHTML = apps.map((a, i) => {
     const days = a.applied_date ? Math.floor((Date.now() - new Date(a.applied_date)) / 86400000) : null;
     const stale = days !== null && days >= 7 && ['Applied','Screening'].includes(a.status);
-    return `<tr onclick="openEdit(allApps.find(x=>x.id===${a.id}))">
-      <td class="co-cell">${a.company}</td>
-      <td>${a.role}</td>
-      <td><span class="badge b-${a.status}">${a.status}</span></td>
+    const statusOpts = ['Applied','Screening','Interview','Offer','Rejected','Withdrawn'];
+    const statusSel = statusOpts.map(s=>`<option${s===a.status?' selected':''}>${s}</option>`).join('');
+    return `<tr>
+      <td class="co-cell" onclick="openEdit(allApps.find(x=>x.id===${a.id}))" style="cursor:pointer">${h(a.company)}</td>
+      <td onclick="openEdit(allApps.find(x=>x.id===${a.id}))" style="cursor:pointer">${h(a.role)}</td>
+      <td>
+        <select class="status-inline b-${a.status}" onchange="quickStatus(${a.id},this)" onclick="event.stopPropagation()">
+          ${statusSel}
+        </select>
+      </td>
       <td class="muted-cell">${a.applied_date||'—'}</td>
       <td><span class="days-chip ${stale?'stale':''}">${days !== null ? days+'d' : '—'}</span></td>
-      <td class="muted-cell">${a.source||'—'}</td>
-      <td class="muted-cell" style="font-size:.74rem">${a.cv_filename||'—'}</td>
+      <td class="muted-cell">${h(a.source)||'—'}</td>
+      <td class="muted-cell" style="font-size:.74rem">${h(a.cv_filename)||'—'}</td>
     </tr>`;
   }).join('');
 }
@@ -996,8 +1063,11 @@ function renderAppList(apps) {
 function renderBoard(apps) {
   const board = document.getElementById('main-board');
   board.innerHTML = '';
+  let visibleCols = 0;
   Object.entries(STATUS_CFG).forEach(([status, cfg]) => {
     let items = apps.filter(a => a.status === status);
+    if (!items.length) return; // hide empty columns
+    visibleCols++;
     const col = document.createElement('div');
     col.className = 'col';
     col.innerHTML = `<div class="col-head">
@@ -1007,25 +1077,24 @@ function renderBoard(apps) {
     </div><div class="col-body" id="col-${status}"></div>`;
     board.appendChild(col);
     const body = col.querySelector('.col-body');
-    if (!items.length) {
-      body.innerHTML = '<div class="col-empty">—</div>';
-    } else {
-      items.forEach(a => {
-        const p = document.createElement('div');
-        p.className = 'job-pill';
-        p.innerHTML = `
-          <div class="job-pill-role">${a.role}</div>
-          <div class="job-pill-co">${a.company}</div>
-          <div style="display:flex;gap:5px;margin-top:7px;flex-wrap:wrap">
-            ${a.location?`<span class="tag">${a.location}</span>`:''}
-            ${a.salary  ?`<span class="tag">${a.salary}</span>`:''}
-          </div>
-          <div class="job-pill-date">${a.applied_date||''}</div>`;
-        p.onclick = () => openEdit(a);
-        body.appendChild(p);
-      });
-    }
+    items.forEach(a => {
+      const p = document.createElement('div');
+      p.className = 'job-pill';
+      p.innerHTML = `
+        <div class="job-pill-role">${h(a.role)}</div>
+        <div class="job-pill-co">${h(a.company)}</div>
+        <div style="display:flex;gap:5px;margin-top:7px;flex-wrap:wrap">
+          ${a.location?`<span class="tag">${h(a.location)}</span>`:''}
+          ${a.salary  ?`<span class="tag">${h(a.salary)}</span>`:''}
+        </div>
+        <div class="job-pill-date">${a.applied_date||''}</div>`;
+      p.onclick = () => openEdit(a);
+      body.appendChild(p);
+    });
   });
+  if (!visibleCols) {
+    board.innerHTML = `<div class="empty-state" style="width:100%"><div class="empty-state-icon">☁</div>No applications match this filter</div>`;
+  }
 }
 
 function toggleView(view) {
@@ -1038,6 +1107,37 @@ function toggleView(view) {
 
 document.getElementById('srch').oninput         = loadApps;
 document.getElementById('srch-status').onchange = loadApps;
+
+async function quickStatus(id, sel) {
+  const newStatus = sel.value;
+  sel.className = `status-inline b-${newStatus}`;
+  try {
+    await api(`/api/applications/${id}`, {method:'PUT', body:JSON.stringify({status:newStatus})});
+    const a = allApps.find(x=>x.id===id);
+    if (a) a.status = newStatus;
+    loadDash();
+    showToast(`Marked as ${newStatus}`);
+  } catch(e) {
+    showToast('Failed to update status');
+    loadApps();
+  }
+}
+
+function exportCSV() {
+  if (!allApps.length) { showToast('No applications to export'); return; }
+  const cols = ['company','role','status','applied_date','salary','location','source','notes'];
+  const header = cols.join(',');
+  const rows = allApps.map(a =>
+    cols.map(c => { const v = String(a[c]||'').replace(/"/g,'""'); return `"${v}"`; }).join(',')
+  );
+  const csv = [header, ...rows].join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'applications.csv'; a.click();
+  URL.revokeObjectURL(url);
+  showToast('Exported!');
+}
 
 // ══════════════════════════════════════════════════
 //  MODAL — ADD / EDIT
@@ -1246,6 +1346,8 @@ async function doPrep() {
   const id  = document.getElementById('prep-sel').value;
   const err = document.getElementById('prep-err');
   if (!id) { showErr(err,'Select an application first'); return; }
+  const cvs = await api('/api/cv');
+  if (!cvs?.length) { showErr(err,'No CV uploaded — <a href="#" onclick="document.querySelector(\'[data-page=cv]\').click();return false">upload your CV</a> first to power interview prep'); return; }
   err.classList.remove('show');
   document.getElementById('prep-out').style.display = 'none';
   const btn = document.getElementById('btn-prep');
@@ -1302,6 +1404,8 @@ async function doSkills() {
   const err = document.getElementById('skills-err');
   err.classList.remove('show');
   document.getElementById('skills-out').style.display = 'none';
+  const cvs = await api('/api/cv');
+  if (!cvs?.length) { showErr(err,'No CV uploaded — <a href="#" onclick="document.querySelector(\'[data-page=cv]\').click();return false">upload your CV</a> first to analyse your skills gap'); return; }
   const btn = document.getElementById('btn-skills');
   setLoading(btn, true, 'Analysing… (15–25s)', true);
   try {
@@ -1366,6 +1470,8 @@ async function doFindJobs() {
   const grid = document.getElementById('jobs-grid');
   const kws  = document.getElementById('kw-strip');
   err.classList.remove('show');
+  const cvs = await api('/api/cv');
+  if (!cvs?.length) { showErr(err,'No CV uploaded — <a href="#" onclick="document.querySelector(\'[data-page=cv]\').click();return false">upload your CV</a> first to get personalised job recommendations'); grid.innerHTML=''; return; }
   grid.innerHTML = '<div class="empty-state"><span class="spinner spinner-w" style="border-top-color:var(--accent)"></span></div>';
   kws.style.display = 'none';
   const btn = document.getElementById('btn-jobs');
@@ -1402,6 +1508,7 @@ async function doFindJobs() {
 }
 
 function esc(s){ return (s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+function h(s){ const d=document.createElement('div');d.textContent=s||'';return d.innerHTML; }
 
 async function quickAdd(title, co, url) {
   await api('/api/applications', {method:'POST', body:JSON.stringify({
@@ -1537,11 +1644,19 @@ async function changePassword() {
 }
 
 // ══════════════════════════════════════════════════
+//  KEYBOARD SHORTCUTS
+// ══════════════════════════════════════════════════
+document.addEventListener('keydown', e => {
+  const tag = document.activeElement?.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  if (e.key === 'n' || e.key === 'N') { e.preventDefault(); openAdd(); }
+});
+
+// ══════════════════════════════════════════════════
 //  BOOT
 // ══════════════════════════════════════════════════
 loadProfile();
 loadDash();
-checkInboxStatus();
 </script>
 </body>
 </html>

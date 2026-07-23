@@ -1,10 +1,9 @@
 from datetime import datetime
+from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
-# NOTE: wire field names intentionally match the original Flask API / existing frontend JS
-# (company, salary, applied_date) even though the DB columns are named per the new spec
-# (company_name, salary_expected, date_applied). Routers translate between the two.
+VALID_STATUSES = ["Applied", "Screening", "Interview", "Offer", "Rejected", "Withdrawn"]
 
 
 class ApplicationCreate(BaseModel):
@@ -20,6 +19,20 @@ class ApplicationCreate(BaseModel):
     location: str | None = None
     cv_id: int | None = None
 
+    @field_validator("company", "role")
+    @classmethod
+    def not_empty(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("cannot be empty")
+        return v.strip()
+
+    @field_validator("status")
+    @classmethod
+    def valid_status(cls, v: str) -> str:
+        if v not in VALID_STATUSES:
+            raise ValueError(f"must be one of {VALID_STATUSES}")
+        return v
+
 
 class ApplicationUpdate(BaseModel):
     company: str | None = None
@@ -32,6 +45,20 @@ class ApplicationUpdate(BaseModel):
     job_description: str | None = None
     location: str | None = None
     cv_id: int | None = None
+
+    @field_validator("company", "role")
+    @classmethod
+    def not_empty(cls, v: str | None) -> str | None:
+        if v is not None and not v.strip():
+            raise ValueError("cannot be empty")
+        return v.strip() if v else v
+
+    @field_validator("status")
+    @classmethod
+    def valid_status(cls, v: str | None) -> str | None:
+        if v is not None and v not in VALID_STATUSES:
+            raise ValueError(f"must be one of {VALID_STATUSES}")
+        return v
 
 
 class ApplicationOut(BaseModel):
