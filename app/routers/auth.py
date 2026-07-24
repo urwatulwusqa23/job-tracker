@@ -20,9 +20,6 @@ me_router = APIRouter(prefix="/api/me", tags=["me"])
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 def register(payload: RegisterRequest, db: Session = Depends(get_db)):
-    # Single-tenant app: registration is only open until the first account exists.
-    if db.query(User).count() > 0:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Registration is closed")
     if db.query(User).filter_by(email=payload.email.lower()).first():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
 

@@ -10,22 +10,22 @@ def test_login_page_offers_registration_when_no_users(client):
     assert "Create one" in r.text
 
 
-def test_login_page_hides_registration_once_a_user_exists(client, test_user):
+def test_login_page_always_shows_registration_link(client):
     r = client.get("/login")
     assert r.status_code == 200
-    assert "Create one" not in r.text
+    assert "Create one" in r.text
 
 
-def test_register_page_available_when_no_users(client):
+def test_register_page_always_available(client):
     r = client.get("/register")
     assert r.status_code == 200
     assert "Create Account" in r.text
 
 
-def test_register_page_falls_back_to_login_when_user_exists(client, test_user):
+def test_register_page_available_when_users_exist(client, test_user):
     r = client.get("/register")
     assert r.status_code == 200
-    assert "Welcome back" in r.text
+    assert "Create Account" in r.text
 
 
 def test_health_endpoint_ok(client):

@@ -1,10 +1,7 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Request
 from fastapi.templating import Jinja2Templates
-from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.database import get_db
-from app.models.user import User
 
 router = APIRouter(tags=["pages"])
 templates = Jinja2Templates(directory="templates")
@@ -20,18 +17,14 @@ def index(request: Request):
 
 
 @router.get("/login")
-def login_page(request: Request, db: Session = Depends(get_db)):
-    has_users = db.query(User).first() is not None
+def login_page(request: Request):
     return templates.TemplateResponse(
-        request, "login.html", {"mode": "login", "can_register": not has_users}
+        request, "login.html", {"mode": "login", "can_register": True}
     )
 
 
 @router.get("/register")
-def register_page(request: Request, db: Session = Depends(get_db)):
-    has_users = db.query(User).first() is not None
-    if has_users:
-        return templates.TemplateResponse(request, "login.html", {"mode": "login", "can_register": False})
+def register_page(request: Request):
     return templates.TemplateResponse(request, "login.html", {"mode": "register", "can_register": True})
 
 

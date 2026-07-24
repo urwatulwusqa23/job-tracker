@@ -10,12 +10,11 @@ def test_register_rejects_short_password(client):
     assert r.status_code == 422
 
 
-def test_register_closed_after_first_user(client):
+def test_register_multiple_users_allowed(client):
     r1 = client.post("/api/auth/register", json={"name": "Jane", "email": "jane@example.com", "password": "password123"})
     assert r1.status_code == 201
     r2 = client.post("/api/auth/register", json={"name": "Bob", "email": "bob@example.com", "password": "password123"})
-    assert r2.status_code == 403
-    assert r2.json()["error"] == "Registration is closed"
+    assert r2.status_code == 201
 
 
 def test_login_success(client, test_user):
